@@ -37,7 +37,9 @@ def load_scan(files):
             seen.add(file.ImagePositionPatient[2])
             file.SliceThickness = np.float(3.3125)
             slices.append(file)
-        '''
+            
+    slices.sort(key = lambda x: float(x.InstanceNumber))
+    '''
     slices.sort(key = lambda x: float(x.InstanceNumber))
     # sort according to instance Number
     
@@ -168,4 +170,4 @@ def plot_3d(image, threshold=-300):
 
     plt.show()
 
-plot_3d(pix_resampled, 400)
+plot_3d(pix_resampled, 0)
