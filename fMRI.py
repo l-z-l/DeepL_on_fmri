@@ -27,16 +27,28 @@ output_path = "data/images/"
 patients = glob(data_path + '/*.dcm')
 
 def load_scan(files):
-    slices = [dicom.read_file(s) for s in files]
-    # sort according to instance Number
+    # slices = [dicom.read_file(s) for s in files]
+    
+    slices = []
+    seen = set()
+    for s in files:
+        file = dicom.read_file(s)
+        if not file.ImagePositionPatient[2] in seen:
+            seen.add(file.ImagePositionPatient[2])
+            file.SliceThickness = np.float(3.3125)
+            slices.append(file)
+        '''
     slices.sort(key = lambda x: float(x.InstanceNumber))
+    # sort according to instance Number
+    
     try:
         slice_thickness = np.abs(slices[0].ImagePositionPatient[2] - slices[1].ImagePositionPatient[2])
     except:
         slice_thickness = np.abs(slices[0].SliceLocation - slices[1].SliceLocation)
         
     for s in slices:
-        s.SliceThickness = slice_thickness
+        s.SliceThickness = np.float(3.3125)
+        '''
     return slices
 
 def get_pixels_hu(scans):
@@ -101,7 +113,7 @@ np.save(output_path + "fullimages_%d.npy" % (id), first_patient_pixels)
 id = 1
 imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
 
-def sample_stack(stack, rows=4, cols=4, start_with=10, show_every=100):
+def sample_stack(stack, rows=4, cols=4, start_with=10, show_every=2):
     fig,ax = plt.subplots(rows,cols,figsize=[12,12])
     for i in range(rows*cols):
         ind = start_with + i*show_every
@@ -113,7 +125,7 @@ def sample_stack(stack, rows=4, cols=4, start_with=10, show_every=100):
 sample_stack(imgs_to_process)
 
 print("Slice Thickness: %f" % first_patient[0].SliceThickness)
-print("Pixel Spacing (row, col): (%f, %f) " % (first_patient[0].PixelSpacing[0], patients[0].PixelSpacing[1]))
+print("Pixel Spacing (row, col): (%f, %f) " % (first_patient[0].PixelSpacing[0], first_patient[0].PixelSpacing[1]))
 
 def resample(image, scan, new_spacing=[1,1,1]):
     # Determine current pixel spacing
@@ -133,20 +145,19 @@ pix_resampled, spacing = resample(first_patient_pixels, first_patient, np.array(
 print("Shape before resampling\t", first_patient_pixels.shape)
 print("Shape after resampling\t", pix_resampled.shape)
 
-
 def plot_3d(image, threshold=-300):
     
     # Position the scan upright, 
     # so the head of the patient would be at the top facing the camera
     p = image.transpose(2,1,0)
     
-    verts, faces = measure.marching_cubes_lewiner(p, threshold)
+    verts, faces = measure.marching_cubes_classic(p, threshold)
 
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
 
     # Fancy indexing: `verts[faces]` to generate a collection of triangles
-    mesh = Poly3DCollection(verts[faces], alpha=0.70)
+    mesh = Poly3DCollection(verts[faces], alpha=0.50)
     face_color = [0.45, 0.45, 0.75]
     mesh.set_facecolor(face_color)
     ax.add_collection3d(mesh)
