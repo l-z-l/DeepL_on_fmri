@@ -140,6 +140,7 @@ pix_resampled, spacing = resample(first_slice_pixels, first_slice, np.array([1,1
 print("Shape before resampling\t", first_slice_pixels.shape)
 print("Shape after resampling\t", pix_resampled.shape)
 
+# VIZ static
 def plot_3d(image, threshold=-300):
     
     # Position the scan upright, 
@@ -165,37 +166,52 @@ def plot_3d(image, threshold=-300):
 
 plot_3d(pix_resampled, 0)
 
-from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
-import plotly.figure_factory as FF
-from plotly.offline import plot
+# VIZ interactive
+from plotly.offline import plot, iplot
+from plotly.tools import FigureFactory as FF
+import plotly.graph_objs as go
 
 def make_mesh(image, threshold=-300, step_size=1):
-    print ("Transposing surface")
+
+    print("Transposing surface")
     p = image.transpose(2,1,0)
     
-    print ("Calculating surface")
-    verts, faces, norm, val = measure.marching_cubes_lewiner(p, threshold, step_size=step_size, allow_degenerate=True) 
+    print("Calculating surface")
+    verts, faces, norm, val = measure.marching_cubes_lewiner(p, threshold,step_size=step_size, allow_degenerate=True, use_classic=True) 
     return verts, faces
 
 def plotly_3d(verts, faces):
     x,y,z = zip(*verts) 
     
-    print ("Drawing")
+    print("Drawing")
     
     # Make the colormap single color since the axes are positional not intensity. 
-    colormap=['rgb([115.2, 115.2, 192)', 'rgb(125, 255, 225)']
-    # colormap=['rgb(236, 236, 212)','rgb(236, 236, 212)']
+#    colormap=['rgb(255,105,180)','rgb(255,255,51)','rgb(0,191,255)']
+      
+    colormap=['rgb(115.2, 115.2, 192)','rgb(236, 236, 212)']
+    trace = go.Scatter3d(x=x, y=y, z=z, mode='markers', marker={'size': 1, 'opacity': 0.4})
     
+    # Configure the layout.
+    layout = go.Layout(
+        margin={'l': 0, 'r': 0, 'b': 0, 't': 0}
+    )
+    
+    fig = go.Figure(data=[trace], layout=layout)
+    '''
     fig = FF.create_trisurf(x=x,
                         y=y, 
                         z=z, 
-                        plot_edges=True,
+                        plot_edges=False,
                         colormap=colormap,
                         simplices=faces,
                         backgroundcolor='rgb(64, 64, 64)',
-                        title="Interactive Visualization")
+                        title="Interactive Visualization",
+                        height=1000, 
+                        width=1500,
+                        aspectratio=dict(x=1, y=1, z=1)
+                        )
+    '''
     plot(fig)
 
-v, f = make_mesh(pix_resampled, 0)
-#plt_3d(v, f)
+v, f = make_mesh(pix_resampled, -300)
 plotly_3d(v, f)

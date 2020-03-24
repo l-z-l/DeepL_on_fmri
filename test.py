@@ -20,8 +20,6 @@ slices = [ dicom.read_file(s) for s in files ]
 slices.sort(key = lambda x: float(x.InstanceNumber))
 indexes = [ x.InstanceNumber for x in slices ]
 
-
-
 # convert to dictionary with key: instanceNumber, val: index 
 hash_map = {k: v for v, k in enumerate(indexes)}
 
