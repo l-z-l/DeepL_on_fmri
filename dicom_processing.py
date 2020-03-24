@@ -23,34 +23,33 @@ from skimage import measure
 data_path = "data/S150058"
 output_path = "data/images/"
 
-slices = glob(data_path + '/*.dcm')
-
 def load_scan(files):
-    # slices = [dicom.read_file(s) for s in files]
-    
-    slices = []
-    seen = set()
-    for s in files:
-        file = dicom.read_file(s)
-        if not file.ImagePositionPatient[2] in seen:
-            seen.add(file.ImagePositionPatient[2])
-            file.SliceThickness = np.float(3.3125)
-            slices.append(file)
-            
+    # read file and sort according to their instance number 
+    slices = [ dicom.read_file(s) for s in files ]
     slices.sort(key = lambda x: float(x.InstanceNumber))
+    
+    indexes = [ x.InstanceNumber for x in slices ]
+    # convert to dictionary with key: instanceNumber, val: index 
+    hash_map = {k: v for v, k in enumerate(indexes)}
+    
+    new_structure = []
+    for i in range(1, 141): # instance number starts from 1
+        one_scan = []
+        for j in range(48):
+            if (i + j * 140) in hash_map.keys():
+                # one_scan.append(hash_map[i + j * 140])
+                one_scan.append(slices[hash_map[i + j * 140]])
+        new_structure.append(one_scan)
     '''
-    slices.sort(key = lambda x: float(x.InstanceNumber))
-    # sort according to instance Number
-    
-    try:
-        slice_thickness = np.abs(slices[0].ImagePositionPatient[2] - slices[1].ImagePositionPatient[2])
-    except:
-        slice_thickness = np.abs(slices[0].SliceLocation - slices[1].SliceLocation)
-        
-    for s in slices:
-        s.SliceThickness = np.float(3.3125)
-        '''
-    return slices
+    # add this sliceThickness to the filfe
+    for slice in new_structure:
+        for element in slice:
+            try:
+                element.SliceThickness = np.abs(slice[1].ImagePositionPatient[2] - slice[0].ImagePositionPatient[2])
+            except:
+                element.SliceThickness = np.abs(slice[1].SliceLocation - slice[1].SliceLocation)       
+    '''
+    return new_structure
 
 def get_pixels_hu(scans):
     # get all the iamge matrix from scans
@@ -76,36 +75,7 @@ def get_pixels_hu(scans):
         
     return np.array(image, dtype=np.int16)
 
-# slices = [dicom.read_file(s) for s in slices]
-
-first_patient = load_scan(slices)
-first_patient_pixels = get_pixels_hu(first_patient)
-# plot 
-plt.hist(first_patient_pixels.flatten(), bins=80, color='c')
-plt.xlabel("Hounsfield Units (HU)")
-plt.ylabel("Frequency")
-plt.show()
-
-# show the image
-plt.imshow(first_patient_pixels[80], cmap=plt.cm.gray)
-plt.show()
-
-# save to local
-id=1
-np.save(output_path + "fullimages_%d.npy" % (id), first_patient_pixels)
-
-
-# load from local
-# file_used=output_path+"fullimages_%d.npy" % id
-# imgs_to_process = np.load(file_used)[0].astype(np.float64) 
-
-
-
-
-# id = 1
-# imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
-# grid images
-def sample_stack(stack, rows=4, cols=4, start_with=10, show_every=2):
+def sample_images(stack, rows=4, cols=4, start_with=0, show_every=3):
     fig,ax = plt.subplots(rows,cols,figsize=[12,12])
     for i in range(rows*cols):
         ind = start_with + i*show_every
@@ -114,11 +84,43 @@ def sample_stack(stack, rows=4, cols=4, start_with=10, show_every=2):
         ax[int(i/rows),int(i % rows)].axis('off')
     plt.show()
 
-sample_stack(imgs_to_process)
+def plot_HU(array_pixel):
+    # plot HU dist graph
+    plt.hist(first_slice_pixels.flatten(), bins=80, color='c')
+    plt.xlabel("Hounsfield Units (HU)")
+    plt.ylabel("Frequency")
+    plt.show()
+
+files = glob(data_path + '/*.dcm')
+slices = load_scan(files)
+first_slice = slices[0]
+first_slice_pixels = get_pixels_hu(first_slice)
 
 
-print("Slice Thickness: %f" % first_patient[0].SliceThickness)
-print("Pixel Spacing (row, col): (%f, %f) " % (first_patient[0].PixelSpacing[0], first_patient[0].PixelSpacing[1]))
+# plot the HUdistgraph
+plot_HU(first_slice)
+# grid plot the images
+sample_images(first_slice_pixels)
+
+print("Slice Thickness: %f" % first_slice[0].SliceThickness)
+print("Pixel Spacing (row, col): (%f, %f) " % (first_slice[0].PixelSpacing[0], first_slice[0].PixelSpacing[1]))
+
+'''
+# save to local
+id=1
+np.save(output_path + "fullimages_%d.npy" % (id), first_slice_pixels)
+
+# load from local
+file_used=output_path+"fullimages_%d.npy" % id
+imgs_to_process = np.load(file_used)[0].astype(np.float64) 
+'''
+
+"""
+    VIZ
+"""
+# id = 1
+# imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
+# grid images
 
 def resample(image, scan, new_spacing=[1,1,1]):
     # Determine current pixel spacing
@@ -134,8 +136,8 @@ def resample(image, scan, new_spacing=[1,1,1]):
     
     return image, new_spacing
 
-pix_resampled, spacing = resample(first_patient_pixels, first_patient, np.array([1,1,1]))
-print("Shape before resampling\t", first_patient_pixels.shape)
+pix_resampled, spacing = resample(first_slice_pixels, first_slice, np.array([1,1,1]))
+print("Shape before resampling\t", first_slice_pixels.shape)
 print("Shape after resampling\t", pix_resampled.shape)
 
 def plot_3d(image, threshold=-300):
@@ -144,21 +146,56 @@ def plot_3d(image, threshold=-300):
     # so the head of the patient would be at the top facing the camera
     p = image.transpose(2,1,0)
     
-    verts, faces = measure.marching_cubes_classic(p, threshold)
+    verts, faces, norm, val = measure.marching_cubes_lewiner(p, threshold)
 
     fig = plt.figure(figsize=(10, 10))
     ax = fig.add_subplot(111, projection='3d')
 
     # Fancy indexing: `verts[faces]` to generate a collection of triangles
     mesh = Poly3DCollection(verts[faces], alpha=0.50)
-    face_color = [0.45, 0.45, 0.75]
-    mesh.set_facecolor(face_color)
+    face_color = [115.2, 115.2, 192]
+    mesh.set_facecolor([x/256 for x in face_color])
     ax.add_collection3d(mesh)
 
     ax.set_xlim(0, p.shape[0])
     ax.set_ylim(0, p.shape[1])
     ax.set_zlim(0, p.shape[2])
 
-    plt.show()
+    plt.savefig('figure.png')
 
 plot_3d(pix_resampled, 0)
+
+from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
+import plotly.figure_factory as FF
+from plotly.offline import plot
+
+def make_mesh(image, threshold=-300, step_size=1):
+    print ("Transposing surface")
+    p = image.transpose(2,1,0)
+    
+    print ("Calculating surface")
+    verts, faces, norm, val = measure.marching_cubes_lewiner(p, threshold, step_size=step_size, allow_degenerate=True) 
+    return verts, faces
+
+def plotly_3d(verts, faces):
+    x,y,z = zip(*verts) 
+    
+    print ("Drawing")
+    
+    # Make the colormap single color since the axes are positional not intensity. 
+    colormap=['rgb([115.2, 115.2, 192)', 'rgb(125, 255, 225)']
+    # colormap=['rgb(236, 236, 212)','rgb(236, 236, 212)']
+    
+    fig = FF.create_trisurf(x=x,
+                        y=y, 
+                        z=z, 
+                        plot_edges=True,
+                        colormap=colormap,
+                        simplices=faces,
+                        backgroundcolor='rgb(64, 64, 64)',
+                        title="Interactive Visualization")
+    plot(fig)
+
+v, f = make_mesh(pix_resampled, 0)
+#plt_3d(v, f)
+plotly_3d(v, f)
