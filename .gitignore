@@ -6,6 +6,8 @@ __pycache__/
 data/*
 *.dcm
 *.nii
+# model caches
+nilearn_cache/
 # C extensions
 *.so
 

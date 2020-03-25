@@ -23,6 +23,16 @@ from skimage import measure
 data_path = "data/S150058"
 output_path = "data/images/"
 
+"""
+                   _                      
+                  | |                     
+     _ __ ___  ___| |__   __ _ _ __   ___ 
+    | '__/ _ \/ __| '_ \ / _` | '_ \ / _ \
+    | | |  __/\__ \ | | | (_| | |_) |  __/
+    |_|  \___||___/_| |_|\__,_| .__/ \___|
+                              | |         
+                              |_|       
+"""
 def load_scan(files):
     # read file and sort according to their instance number 
     slices = [ dicom.read_file(s) for s in files ]
@@ -51,6 +61,12 @@ def load_scan(files):
     '''
     return new_structure
 
+"""
+          ___  ___    _   
+         | __||   \  /_\  
+         | _| | |) |/ _ \ 
+         |___||___//_/ \_\ 
+"""
 def get_pixels_hu(scans):
     # get all the iamge matrix from scans
     image = np.stack([s.pixel_array for s in scans])
@@ -90,38 +106,7 @@ def plot_HU(array_pixel):
     plt.xlabel("Hounsfield Units (HU)")
     plt.ylabel("Frequency")
     plt.show()
-
-files = glob(data_path + '/*.dcm')
-slices = load_scan(files)
-first_slice = slices[0]
-first_slice_pixels = get_pixels_hu(first_slice)
-
-
-# plot the HUdistgraph
-plot_HU(first_slice)
-# grid plot the images
-sample_images(first_slice_pixels)
-
-print("Slice Thickness: %f" % first_slice[0].SliceThickness)
-print("Pixel Spacing (row, col): (%f, %f) " % (first_slice[0].PixelSpacing[0], first_slice[0].PixelSpacing[1]))
-
-'''
-# save to local
-id=1
-np.save(output_path + "fullimages_%d.npy" % (id), first_slice_pixels)
-
-# load from local
-file_used=output_path+"fullimages_%d.npy" % id
-imgs_to_process = np.load(file_used)[0].astype(np.float64) 
-'''
-
-"""
-    VIZ
-"""
-# id = 1
-# imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
-# grid images
-
+    
 def resample(image, scan, new_spacing=[1,1,1]):
     # Determine current pixel spacing
     spacing = np.array([scan[0].SliceThickness] + list(scan[0].PixelSpacing), dtype=np.float32)
@@ -136,10 +121,48 @@ def resample(image, scan, new_spacing=[1,1,1]):
     
     return image, new_spacing
 
+files = glob(data_path + '/*.dcm')
+slices = load_scan(files)
+# use the first 3-d brain pixels 
+first_slice = slices[0]
+first_slice_pixels = get_pixels_hu(first_slice)
+
+# plot the HUdistgraph
+plot_HU(first_slice)
+# grid plot the images
+sample_images(first_slice_pixels)
+
+print("Slice Thickness: %f" % first_slice[0].SliceThickness)
+print("Pixel Spacing (row, col): (%f, %f) " % (first_slice[0].PixelSpacing[0], first_slice[0].PixelSpacing[1]))
+
 pix_resampled, spacing = resample(first_slice_pixels, first_slice, np.array([1,1,1]))
 print("Shape before resampling\t", first_slice_pixels.shape)
 print("Shape after resampling\t", pix_resampled.shape)
 
+"""
+      ___     __   ___  
+     |_ _|   / /  / _ \ 
+      | |   / /  | (_) |
+     |___| /_/    \___/                 
+"""
+'''
+# save to local
+id=1
+np.save(output_path + "fullimages_%d.npy" % (id), first_slice_pixels)
+
+# load from local
+file_used=output_path+"fullimages_%d.npy" % id
+imgs_to_process = np.load(file_used)[0].astype(np.float64) 
+'''
+
+"""
+            _      
+           (_)     
+    __   __ _  ____
+    \ \ / /| ||_  /
+     \ V / | | / / 
+      \_/  |_|/___|
+""" 
 # VIZ static
 def plot_3d(image, threshold=-300):
     
