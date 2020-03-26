@@ -6,11 +6,14 @@ Created on Mon Mar 23 17:33:54 2020
 @author: wenzhao
 """
 
-#from nilearn import datasets
-#dataset = datasets.fetch_development_fmri(n_subjects=1)
-func_filename = '/home/wenzhao/Documents/P-NP/data/4d/myfile.nii'
+from nilearn import datasets
+dataset = datasets.fetch_development_fmri(n_subjects=1)
+func_filename = dataset.func[0] # '/home/wenzhao/Documents/P-NP/data/4d/myfile.nii'
 
+confounds = dataset.confounds
 
+from nilearn import plotting, image
+zzz = image.load_img(func_filename)
 
 from nilearn.input_data import NiftiMasker
 nifti_masker = NiftiMasker(standardize=True, mask_strategy='epi',
@@ -29,7 +32,7 @@ mean_func_img = mean_img(func_filename)
 plot_roi(mask_img, mean_func_img, display_mode='y', cut_coords=4, title="Mask")
 
 
-fmri_masked = nifti_masker.transform(func_filename)
+fmri_masked = nifti_masker.transform(func_filename, confounds=dataset.confounds)
 
 
 
