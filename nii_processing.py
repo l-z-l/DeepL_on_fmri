@@ -67,12 +67,13 @@ masker = NiftiMasker(standardize=True, mask_strategy='epi',
                            memory="nilearn_cache", memory_level=5,
                            smoothing_fwhm=8) # smooth the mask
 
-masker_label = NiftiLabelsMasker(first_file, standardize=True)
-time_series = masker_label.fit_transform(first_file)
+#masker_label = NiftiLabelsMasker(first_file, standardize=True)
+#time_series = masker_label.fit_transform(first_file)
 # train mask 
 masker = masker.fit(first_file)
 # plot the mask
-# plotting.plot_roi(masker.mask_img_, title="default mask")
+# 
+# plotting.plot_roi(masker.mask_img_, bg_img=  title="default mask")
 # masker.generate_report().save_as_html("mask_report.html")
 # fit the mask to the image
 # default_mask = masker.mask_img_.get_data().astype(np.bool)
@@ -81,13 +82,7 @@ vol_masked = masker.transform(first_file)# .astype(np.float64)
 print("Trended: mean %.2f, std %.2f" % (np.mean(vol_masked), np.std(vol_masked)))
 
 # plot voxels 
-import matplotlib.pyplot as plt
-plt.plot(vol_masked[5:150, :3])
-
-plt.title('Voxel Time Series')
-plt.xlabel('Scan number')
-plt.ylabel('Normalized signal')
-plt.tight_layout()
+|
 """
                                                  _          _       
        ___  ___   _ __  _ __   _ __ ___    __ _ | |_  _ __ (_)__  __
@@ -96,7 +91,6 @@ plt.tight_layout()
       \___|\___/ |_|   |_|    |_| |_| |_| \__,_| \__||_|   |_|/_/\_\
                                                                     
 """
-
 from nilearn.connectome import ConnectivityMeasure
 correlation_measure = ConnectivityMeasure(kind='correlation')
 
