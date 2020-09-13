@@ -4,7 +4,30 @@ import networkx as nx
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
+# graph
+# !pip install nxviz bctpy
+import networkx as nx
+# from nxviz.plots import CircosPlot
+# import bct
+# 179 271
+# nilearn
+from nilearn.connectome import ConnectivityMeasure
+def load_fmri_data():
+    subjects_list = np.load("./../data/179_AAL.npy", allow_pickle=True)
+    label_list = np.load("./../data/179_AAL_label.npy", allow_pickle=True)
+    correlation_measure = ConnectivityMeasure(kind='correlation', discard_diagonal=True) # sparse representation
 
+    correlation_matrices_list = correlation_measure.fit_transform(subjects_list)
+    np.fill_diagonal(correlation_matrices_list[0], 1) # Diagonal 1s
+
+    #Crates graph using the data of the correlation matrix
+    G = nx.from_numpy_matrix(correlation_matrices_list[0])
+
+    #relabels the nodes to match the  stocks names
+    G = nx.relabel_nodes(G, lambda x: atlas_labels[x])
+
+    #shows the edges with their corresponding weights
+    G.edges(data=True)
 
 def parse_index_file(filename):
     """
@@ -127,7 +150,7 @@ def preprocess_features(features):
     features = r_mat_inv.dot(features)  # D^-1:[2708, 2708]@X:[2708, 2708]
     return sparse_to_tuple(features)  # [coordinates, data, shape], []
 
-# D^(0.5) * A * D^(0.5)
+
 def normalize_adj(adj):
     """Symmetrically normalize adjacency matrix."""
     adj = sp.coo_matrix(adj)
@@ -167,3 +190,6 @@ def chebyshev_polynomials(adj, k):
         t_k.append(chebyshev_recurrence(t_k[-1], t_k[-2], scaled_laplacian))
 
     return sparse_to_tuple(t_k)
+
+if __name__ == "__main__":
+    load_fmri_data()
