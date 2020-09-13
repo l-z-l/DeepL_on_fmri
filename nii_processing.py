@@ -82,7 +82,6 @@ vol_masked = masker.transform(first_file)# .astype(np.float64)
 print("Trended: mean %.2f, std %.2f" % (np.mean(vol_masked), np.std(vol_masked)))
 
 # plot voxels 
-|
 """
                                                  _          _       
        ___  ___   _ __  _ __   _ __ ___    __ _ | |_  _ __ (_)__  __
