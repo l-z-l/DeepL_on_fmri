@@ -127,7 +127,7 @@ def preprocess_features(features):
     features = r_mat_inv.dot(features)  # D^-1:[2708, 2708]@X:[2708, 2708]
     return sparse_to_tuple(features)  # [coordinates, data, shape], []
 
-
+# D^(0.5) * A * D^(0.5)
 def normalize_adj(adj):
     """Symmetrically normalize adjacency matrix."""
     adj = sp.coo_matrix(adj)
