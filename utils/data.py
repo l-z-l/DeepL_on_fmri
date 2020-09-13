@@ -4,30 +4,55 @@ import networkx as nx
 import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
-# graph
-# !pip install nxviz bctpy
 import networkx as nx
-# from nxviz.plots import CircosPlot
-# import bct
-# 179 271
-# nilearn
+
 from nilearn.connectome import ConnectivityMeasure
-def load_fmri_data():
-    subjects_list = np.load("./../data/179_AAL.npy", allow_pickle=True)
-    label_list = np.load("./../data/179_AAL_label.npy", allow_pickle=True)
-    correlation_measure = ConnectivityMeasure(kind='correlation', discard_diagonal=True) # sparse representation
 
-    correlation_matrices_list = correlation_measure.fit_transform(subjects_list)
-    np.fill_diagonal(correlation_matrices_list[0], 1) # Diagonal 1s
 
-    #Crates graph using the data of the correlation matrix
-    G = nx.from_numpy_matrix(correlation_matrices_list[0])
+def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True, vectorize=False):
+    '''
+    extract connectivities from time series signals
+    Params :
+    --------
+        - signals ((num_subject, time_frame, num_ROI) np.array) : the ROI signals
+        - TODO: documentation
+    Returns :
+    --------
+        - the functional connectivity
+        - type : numpy matrix or numpy vector
+    '''
+    # define a correlation measure
+    correlation_measure = ConnectivityMeasure(kind=kind, discard_diagonal=discard_diagonal, vectorize=vectorize)
+    # transform to connectivity matrices
+    functional_connectivity = correlation_measure.fit_transform(signals)
 
-    #relabels the nodes to match the  stocks names
-    G = nx.relabel_nodes(G, lambda x: atlas_labels[x])
+    return functional_connectivity
 
-    #shows the edges with their corresponding weights
-    G.edges(data=True)
+def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verbose=True):
+    '''
+    Load the Saved 3D ROI signals
+    Params :
+    --------
+        - dataDir (str) : the path of the data directory
+        - dataset (str) : the name of the dataset
+        - connectivity (bool) :
+    Returns :
+        - the signals of brain
+        TODO: documentation
+    '''
+    subjects_list = np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True)
+    label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
+    classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
+
+    if connectivity:
+        subjects_list = signal_to_connectivities(subjects_list)
+
+    if verbose:
+        # TODO: print the information
+        print(classes)
+        print(classes_count)
+
+    return subjects_list, label_list, classes_idx
 
 def parse_index_file(filename):
     """
@@ -38,7 +63,6 @@ def parse_index_file(filename):
         index.append(int(line.strip()))
     return index
 
-
 def sample_mask(idx, l):
     """
     Create mask.
@@ -46,7 +70,6 @@ def sample_mask(idx, l):
     mask = np.zeros(l)
     mask[idx] = 1
     return np.array(mask, dtype=np.bool)
-
 
 def load_data(dataset_str):
     """
@@ -192,4 +215,6 @@ def chebyshev_polynomials(adj, k):
     return sparse_to_tuple(t_k)
 
 if __name__ == "__main__":
-    load_fmri_data()
+    connectivities, labels, labels_idex = load_fmri_data()
+
+    # conver to graph sparse matrix
