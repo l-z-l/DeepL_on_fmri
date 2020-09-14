@@ -27,8 +27,7 @@ sparse_adj_matrices = sym_normalize_adj(connectivity_matrices).to(device)
 
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, label, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
-
-##########################################################
+#############             #############################################
 # %% initialise mode and
 ##########################################################
 print("--------> Using ", device)
@@ -36,11 +35,17 @@ net = GCN(H_0.shape[2], len(classes))
 net.to(device)
 
 optimizer = optim.Adam(net.parameters(), lr=args.learning_rate)
+criterion = torch.nn.BCEWithLogitsLoss().to(device) 
+
 net.train()
 for epoch in range(args.epochs):
-    out = net((H_0[0], sparse_adj_matrices[0]))
-    # out = out[0]
-    # loss = masked_loss(out, train_label, train_mask)
+    out = net((H_0, sparse_adj_matrices))
+    zzz = out.shape
+    print(out.shape)
+
+    out = out.detach().cpu()
+    loss = criterion(out, label)
+    print()
     # loss += args.weight_decay * net.l2_loss()
     #
     # acc = masked_acc(out, train_label, train_mask)
