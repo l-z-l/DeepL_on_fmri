@@ -19,6 +19,7 @@ def threshold(correlation_matrices, threshold=1):
     Returns :
         - adjacency matrix in n * n format, with diagonal 0
         - list of nx.graph
+        TODO: allow percentage argument
     '''
     # Creates graph using the data of the correlation matrix
     # graph_list = []
@@ -111,7 +112,7 @@ def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True,
         - TODO: documentation
     Returns :
     --------
-        - the functional connectivity
+        - the functional connectivity matrix
         - type : numpy matrix or numpy vector
     '''
     # define a correlation measure
@@ -142,7 +143,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verb
         - dataset (str) : the name of the dataset
         - connectivity (bool) :
     Returns :
-        - the signals of brain
+        - the signals of brain or functional connectivities
         TODO: documentation
     '''
     subjects_list = np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True)
@@ -158,15 +159,6 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verb
         print(classes_count)
 
     return subjects_list, label_list, classes_idx
-
-def parse_index_file(filename):
-    """
-    Parse index file.
-    """
-    index = []
-    for line in open(filename):
-        index.append(int(line.strip()))
-    return index
 
 def sample_mask(idx, l):
     """
@@ -223,8 +215,8 @@ def sym_normalize_adj(connectivity_matrices):
     --------
         - adj (n * n torch.tensor) : vontaining only 0 or 1
     Returns :
-        -list of torch.sparse.FloatTensor(indices, values, shape)
-        TODO: Zelun check line 224 csc and csr matrix difference line 225
+        - torch.tensor (n * torch.sparse.FloatTensor(indices, values, shape))
+        TODO: Zelun check line 224 csc and csr/csc matrix difference line 232
     '''
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
@@ -283,8 +275,10 @@ def chebyshev_polynomials(adj, k):
     return sparse_to_tuple(t_k)
 
 if __name__ == "__main__":
-    ROIs, labels, labels_idex = load_fmri_data(connectivity=False)
-    connectivities = signal_to_connectivities(ROIs, kind='correlation')
+    # LOAD data
+    ROI_signals, labels, labels_idex = load_fmri_data(connectivity=False)
+    # convert to functional connectivity
+    connectivities = signal_to_connectivities(ROI_signals, kind='correlation')
     connectivities, _ = threshold(connectivities[:3])
 
     # inital node embeddings

@@ -5,7 +5,6 @@ from utils.helper import sparse_dropout, dot
 from utils.config import args
 from torch.nn.init import xavier_normal_
 
-
 class GraphConv(nn.Module):
     def __init__(self, input_dim, output_dim, num_features_nonzero,
                  dropout=0.,
