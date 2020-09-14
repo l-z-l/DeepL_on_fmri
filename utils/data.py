@@ -216,7 +216,6 @@ def sym_normalize_adj(connectivity_matrices):
         - adj (n * n torch.tensor) : vontaining only 0 or 1
     Returns :
         - torch.tensor (n * torch.sparse.FloatTensor(indices, values, shape))
-        TODO: Zelun check line 224 csc and csr/csc matrix difference line 232
     '''
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
@@ -229,8 +228,7 @@ def sym_normalize_adj(connectivity_matrices):
         d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5
-        adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocsr() # D^-0.5AD^0.5
-        sparse_matrices.append(sparse_mx_to_torch_sparse_tensor(adj))
+        adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt) #.tocsr() # D^-0.5AD^0.5
     return list_2_tensor(sparse_matrices)
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
@@ -241,7 +239,6 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
         - sparse_mx (csc matrix) :
     Returns :
         - torch.sparse.FloatTensor(indices, values, shape)
-        TODO: Zelun check here
     '''
     sparse_mx = sparse_mx.tocoo().astype(np.float32) # convert to coordinate, like to_sparse
     indices = torch.from_numpy(

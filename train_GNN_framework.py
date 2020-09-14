@@ -33,8 +33,9 @@ print("--------> Using ", device)
 
 net = GNN(feat_dim, num_classes, num_features_nonzero)
 net.to(device)
-optimizer = optim.Adam(net.parameters(), lr=0.01)
 
+
+optimizer = optim.Adam(net.parameters(), lr=0.01)
 net.train()
 for epoch in range(args.epochs):
 
