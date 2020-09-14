@@ -4,7 +4,7 @@ from torch.nn import functional as F
 from utils.helper import sparse_dropout, dot
 from utils.config import args
 from torch.nn.init import xavier_normal_
-
+from utils.data import list_2_tensor
 
 class GraphConv(nn.Module):
     def __init__(self, input_dim, output_dim,
@@ -49,21 +49,25 @@ class GraphConv(nn.Module):
             x = F.dropout(x, self.dropout)
 
         # convolve
-        if not self.featureless:  # if it has features x
-            if self.is_sparse_inputs:
-                xw = torch.sparse.mm(x, self.weight)
+        out_list = []
+        for i, mx in enumerate(x):
+            if not self.featureless:  # if it has features x
+                if self.is_sparse_inputs:
+                    xw = torch.sparse.mm(mx, self.weight)
+                else:
+                    xw = torch.mm(mx, self.weight) # (20, 116, 16) (116, 2)  -> (20, 116, 2)
             else:
-                xw = torch.mm(x, self.weight)
-        else:
-            # initial pass
-            xw = self.weight
+                # initial pass
+                xw = self.weight
 
-        out = torch.sparse.mm(adj, xw)
+            out = torch.sparse.mm(adj[i], xw) # (116, 116)  (20, 116, out_dim) -> (20, 116, out_dim)
+            out_list.append(out)
 
         # if self.bias is not None:
         #     out += self.bias
+        out_list = list_2_tensor(out_list)
 
-        return self.activation(out), adj
+        return self.activation(out_list), adj
 
 
 class GraphAttention(nn.Module):

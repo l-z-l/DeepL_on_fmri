@@ -24,7 +24,7 @@ class GCN(nn.Module):
                                               is_sparse_inputs=False),
 
                                     )
-        self.readout = nn.Linear(node_num * output_dim, output_dim)
+        self.readout = nn.Linear(node_num * output_dim, 1)
 
         ### TODO: weight initilization
 
@@ -32,7 +32,7 @@ class GCN(nn.Module):
         x, support = inputs
         x, _ = self.layers((x, support))
 
-        x = torch.flatten(x)
+        x = torch.flatten(x, start_dim=1)
         return self.readout(x)
 
     def l2_loss(self):
