@@ -1,0 +1,1 @@
+This directory consists of summaries presented during our weekly Tuesday meeting. 
