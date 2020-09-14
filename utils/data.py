@@ -42,7 +42,7 @@ def threshold(correlation_matrices, threshold=1):
     return correlation_matrices, None
 
 
-def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True):
+def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True, dataDir='../data'):
     '''
     embed each node
     Params :
@@ -52,8 +52,9 @@ def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True):
     Returns :
         - adjacency matrix in (n_subjects, ) format, with diagonal 0
         TODO: Documentation + allow node2Vec embed
+        :param dataDir:
     '''
-    coordinate = torch.tensor(np.load('../data/' + mask_name + "_coordinates.npy", allow_pickle=True), dtype=torch.float)
+    coordinate = torch.tensor(np.load(dataDir + '/' + mask_name + "_coordinates.npy", allow_pickle=True), dtype=torch.float)
     print(coordinate.shape)
 
     H = []
@@ -220,7 +221,7 @@ def sym_normalize_adj(connectivity_matrices):
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
 
-        adj[adj != 0] = 1
+        adj[adj != 0] = 1 # weighted graph
         adj += sp.eye(adj.shape[0]) # A^hat = A A+ I
 
         adj = sp.coo_matrix(adj)
@@ -229,6 +230,7 @@ def sym_normalize_adj(connectivity_matrices):
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt) #.tocsr() # D^-0.5AD^0.5
+        sparse_matrices.append(sparse_mx_to_torch_sparse_tensor(adj))
     return list_2_tensor(sparse_matrices)
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):

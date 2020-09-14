@@ -6,7 +6,7 @@ from utils.config import args
 
 class GCN(nn.Module):
 
-    def __init__(self, input_dim, output_dim, num_features_nonzero):
+    def __init__(self, input_dim, output_dim):
         super(GCN, self).__init__()
 
         self.input_dim = input_dim  # 1433
@@ -14,23 +14,19 @@ class GCN(nn.Module):
 
         print('input dim:', input_dim)
         print('output dim:', output_dim)
-        print('num_features_nonzero:', num_features_nonzero)
 
-        self.layers = nn.Sequential(GraphConv(self.input_dim, args.hidden, num_features_nonzero,
+        self.layers = nn.Sequential(GraphConv(self.input_dim, args.hidden,
                                                      activation=F.relu,
-                                                     dropout=args.dropout,
-                                                     is_sparse_inputs=True),
-
-                                    GraphConv(args.hidden, output_dim, num_features_nonzero,
+                                                     is_sparse_inputs=False),
+                                    GraphConv(args.hidden, output_dim,
                                                      activation=F.relu,
-                                                     dropout=args.dropout,
+                                                     dropout=0.4,
                                                      is_sparse_inputs=False),
 
                                     )
 
     def forward(self, inputs):
         x, support = inputs
-
         x = self.layers((x, support))
 
         return x
@@ -48,3 +44,6 @@ class GCN(nn.Module):
                 loss += p.pow(2).sum()
 
         return loss
+
+if __name__ == "__main__":
+    net = GNN(11, len(classes))
