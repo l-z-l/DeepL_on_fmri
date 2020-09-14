@@ -2,15 +2,17 @@ import numpy as np
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
+from torch.nn import functional as F
 import torch
 import bct
 from scipy.sparse import csgraph
-from data import load_fmri_data
-from sklearn.model_selection import train_test_splits
+from utils.data import load_fmri_data, list_2_tensor
+from sklearn.model_selection import train_test_split
+from torch.utils.data import random_split
 import random
 
-def train_loader(mode='train', input, target):
-    # Batch size used when loading data
+def train_loader(mode, input, feature, target):
+    # Batch size used when loading dat a
     BATCHSIZE = 32
 
     assert len(input) == len(target), \
@@ -18,40 +20,46 @@ def train_loader(mode='train', input, target):
             len(input), len(target))
 
     # Define loaders
-    train_data, test_data, train_label, test_label = train_test_split(input,
-                                                                      target,
-                                                                      test_size=0.2,
-                                                                      random_state=42)
+    # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
+    train_data, test_data, train_label, test_label, train_feat, test_feat = train_test_split(input, target, feature, test_size=0.2)
+    # train_test_split(input, target, test_size=0.2)
 
-    print("train shape{} & {}".format(train_data.shape, train_label.shape))
-    print("test shape{} & {}".format(test_data.shape, test_label.shape))
+    # print("train shape {} & {}".format(len(train_data), train_label.shape))
+    # print("test shape {} & {}".format(len(test_data), test_label.shape))
+    # print("test shape {} & {}".format(len(train_feat), len(test_feat)))
 
     if mode == 'train':
-        input_data = train_data
+        input_data = train_data # convert to tensor
         label_data = train_label
+        feat_data = train_feat
     elif mode == 'test':
-        input_data = test_data
+        input_data = test_data # convert to tensor
         label_data = test_label
+        feat_data = test_feat
 
     subject_length = len(input_data)
     index_list = list(range(subject_length))
+
     def data_generator():
         if mode == 'train':
             random.shuffle(index_list)
         subjects_list = []
         labels_list = []
+        feat_list = []
         for i in index_list:
             subjects_list.append(input_data[i])
             labels_list.append(label_data[i])
+            feat_list.append(feat_data[i])
             if len(subjects_list) == BATCHSIZE:
-                yield torch.tensor(subjects_list), torch.tensor(labels_list)
+                yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
                 subjects_list = []
                 labels_list = []
+                feat_list = []
 
         # if the left sample is smaller than the batch size，
         # then the rest of the data form a mini-batch of len(subject_list)
         if len(subjects_list) > 0:
-            yield torch.tensor(subjects_list), torch.tensor(labels_list)
+            yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
 
     return data_generator
 
@@ -115,3 +123,6 @@ def dot(x, y, sparse=False):
     else:
         res = torch.mm(x, y)
     return res
+
+if __name__ == '__main__':
+    zz = train_loader(mode='train', input=sparse_adj_list, target=label)

@@ -17,7 +17,7 @@ class GCN(nn.Module):
         print('output dim:', output_dim)
         self.layers = nn.Sequential(GraphConv(self.input_dim, args.hidden,
                                               activation=F.relu,
-                                              is_sparse_inputs=False),
+                                              is_sparse_inputs=True),
                                     GraphConv(args.hidden, output_dim,
                                               activation=F.relu,
                                               dropout=0.4,

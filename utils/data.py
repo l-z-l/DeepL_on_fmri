@@ -216,7 +216,7 @@ def sym_normalize_adj(connectivity_matrices):
     --------
         - adj (n * n torch.tensor) : vontaining only 0 or 1
     Returns :
-        - torch.tensor (n * torch.sparse.FloatTensor(indices, values, shape))
+        - list (n * torch.sparse.FloatTensor(indices, values, shape))
     '''
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
@@ -231,7 +231,7 @@ def sym_normalize_adj(connectivity_matrices):
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt) #.tocsr() # D^-0.5AD^0.5
         sparse_matrices.append(sparse_mx_to_torch_sparse_tensor(adj))
-    return list_2_tensor(sparse_matrices)
+    return sparse_matrices # list_2_tensor(sparse_matrices)
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     '''

@@ -53,6 +53,7 @@ class GraphConv(nn.Module):
         for i, mx in enumerate(x):
             if not self.featureless:  # if it has features x
                 if self.is_sparse_inputs:
+                    # print()
                     xw = torch.sparse.mm(mx, self.weight)
                 else:
                     xw = torch.mm(mx, self.weight) # (20, 116, 16) (116, 2)  -> (20, 116, 2)
