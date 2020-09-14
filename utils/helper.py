@@ -3,9 +3,8 @@ import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
 import torch
+import bct
 from scipy.sparse import csgraph
-
-
 
 def masked_loss(out, label, mask):
     loss = F.cross_entropy(out, label, reduction='none')

@@ -5,8 +5,86 @@ import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import networkx as nx
-
+import bct
+import torch
 from nilearn.connectome import ConnectivityMeasure
+
+def threshold(correlation_matrices, threshold=1):
+    '''
+    Load the Saved 3D ROI signals
+    Params :
+    --------
+        - correlation_matrices (m * n * n np.array) : the weighted adjacency matrices
+        - threshold (float) : percentage
+    Returns :
+        - adjacency matrix in n * n format, with diagonal 0
+        - list of nx.graph
+    '''
+    # Creates graph using the data of the correlation matrix
+    graph_list = []
+    for i, matrix in enumerate(correlation_matrices):
+        # node is not self connected
+        np.fill_diagonal(matrix, 0)
+
+        mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
+
+        # THRESHOLD: remove WHEN abs(connectivity) < mean + 1.5 * std
+        # reduced from over 6000 to ~= 600 around 13.36%, since the data is normalised
+        matrix[abs(matrix) <= (mean + 1 * std)] = 0
+
+        ### convert to nx.graph
+        # g = nx.from_numpy_matrix(matrix)
+        # graph_list.append(g)
+        # relabels the nodes to match the  stocks names
+        # G = nx.relabel_nodes(G, lambda x: atlas_labels[x])
+        # print(f'{i}th graph has {g.number_of_nodes()} nodes, {g.number_of_edges() / 2} edges')
+    return correlation_matrices, None
+
+
+def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True):
+    '''
+    embed each node
+    Params :
+    --------
+        - correlation_matrices (m * n * n np.array) : the weighted adjacency matrices
+        - hand_crafted (bool) : using hand_engineered feature or vector embedding
+    Returns :
+        - adjacency matrix in (n_subjects, ) format, with diagonal 0
+        TODO: Documentation + allow node2Vec embed
+    '''
+    coordinate = torch.tensor(np.load('../data/' + mask_name + "_coordinates.npy", allow_pickle=True), dtype=torch.float)
+    print(coordinate.shape)
+
+    H = []
+    for i, matrix in enumerate(correlation_matrices):
+        # node embeddings using graph local measures
+        graph_measure = {
+            "degree": bct.degrees_und(matrix),
+            # 2 node strength
+            "node_strength": bct.strengths_und(matrix),
+            # 3 participation coefficient
+            # 4 betweenness centrality
+            "betweenness_centrality": bct.betweenness_bin(matrix) / ((len(matrix) - 1) * (len(matrix) - 2)),
+            # 5 K-coreness centrality
+            "kcoreness_centrality": bct.kcoreness_centrality_bd(matrix)[0],
+            # 6 subgraph centrality
+            "subgraph_centrality": bct.subgraph_centrality(matrix),
+            # 7 eigenvector centrality
+            "eigenvector_centrality": bct.eigenvector_centrality_und(matrix),
+            # 8 PageRank centrality
+            "pagerank_centrality": bct.pagerank_centrality(matrix, d=0.85),
+            # 9 diversity coefficient
+            # 10 local efficiency
+            "local_efficiency": bct.efficiency_bin(matrix, local=True)
+        }
+
+        vec = []
+        for key, val in graph_measure.items():
+            vec.append(val)
+        H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
+
+        H.append(H_i)
+    return torch.stack([x.float() for x in H], dim=0)
 
 
 def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True, vectorize=False):
@@ -27,6 +105,7 @@ def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True,
     functional_connectivity = correlation_measure.fit_transform(signals)
 
     return functional_connectivity
+
 
 def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verbose=True):
     '''
@@ -54,6 +133,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verb
 
     return subjects_list, label_list, classes_idx
 
+
 def parse_index_file(filename):
     """
     Parse index file.
@@ -63,6 +143,7 @@ def parse_index_file(filename):
         index.append(int(line.strip()))
     return index
 
+
 def sample_mask(idx, l):
     """
     Create mask.
@@ -70,6 +151,7 @@ def sample_mask(idx, l):
     mask = np.zeros(l)
     mask[idx] = 1
     return np.array(mask, dtype=np.bool)
+
 
 def load_data(dataset_str):
     """
@@ -214,7 +296,11 @@ def chebyshev_polynomials(adj, k):
 
     return sparse_to_tuple(t_k)
 
+
 if __name__ == "__main__":
     connectivities, labels, labels_idex = load_fmri_data()
+    connectivities, _ = threshold(connectivities[:3])
+    # inital node embeddings
+    H_0 = node_embed(connectivities)
 
-    # conver to graph sparse matrix
+
