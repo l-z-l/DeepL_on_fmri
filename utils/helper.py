@@ -13,7 +13,7 @@ import random
 
 def train_loader(mode, input, feature, target):
     # Batch size used when loading dat a
-    BATCHSIZE = 32
+    BATCHSIZE = 64
 
     assert len(input) == len(target), \
         "length of train_subject({}) should be the same as train_labels({})".format(
@@ -21,7 +21,8 @@ def train_loader(mode, input, feature, target):
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label, train_feat, test_feat = train_test_split(input, target, feature, test_size=0.2)
+    train_data, test_data, train_label, test_label, train_feat, test_feat = train_test_split(input, target, feature,
+                                                                                             test_size=0.2, random_state=random.randrange(100))
     # train_test_split(input, target, test_size=0.2)
 
     # print("train shape {} & {}".format(len(train_data), train_label.shape))

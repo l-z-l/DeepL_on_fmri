@@ -18,13 +18,16 @@ class GCN(nn.Module):
         self.layers = nn.Sequential(GraphConv(self.input_dim, args.hidden,
                                               activation=F.relu,
                                               is_sparse_inputs=True),
-                                    GraphConv(args.hidden, output_dim,
+                                    GraphConv(args.hidden, output_dim * 2,
                                               activation=F.relu,
-                                              dropout=0.4,
+                                              dropout=0.5,
                                               is_sparse_inputs=False),
 
                                     )
-        self.readout = nn.Linear(node_num * output_dim, 1)
+        self.readout = nn.Sequential(nn.Linear(node_num * output_dim * 2, 64),
+                                     nn.ReLU(),
+                                     nn.Linear(64, 1)
+                                     )
 
         ### TODO: weight initilization
 

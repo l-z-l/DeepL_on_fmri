@@ -135,7 +135,7 @@ def list_2_tensor(list_matrix):
     '''
     return torch.stack([x for x in list_matrix], dim=0)
 
-def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verbose=False):
+def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, connectivity=True, verbose=False):
     '''
     Load the Saved 3D ROI signals
     Params :
@@ -149,6 +149,11 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', connectivity=True, verb
     '''
     subjects_list = np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True)
     label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
+    if label != None:
+        select_idx = [i for i, x in enumerate(label_list) if x == "CN" or x =="AD"]
+        subjects_list = subjects_list[select_idx]
+        label_list = label_list[select_idx]
+
     classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
 
     if connectivity:
