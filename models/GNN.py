@@ -22,12 +22,11 @@ class GCN(nn.Module):
                                               activation=F.relu,
                                               dropout=0.5,
                                               is_sparse_inputs=False),
-
                                     )
         self.readout = nn.Sequential(nn.Linear(node_num * output_dim * 2, 64),
                                      nn.ReLU(),
-                                     nn.Linear(64, 1)
-                                     # nn.LogSoftmax()
+                                     nn.Linear(64, 2),
+                                     nn.LogSoftmax()
                                      )
 
         ### TODO: weight initilization

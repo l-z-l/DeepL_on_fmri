@@ -6,49 +6,33 @@ from torch.autograd import Variable
 import numpy as np
 
 from utils.data import *
-from models.GNN import GCN
+from models.MLP import Linear
 from utils.config import args
-from utils.helper import masked_loss, masked_acc
-import random
-from sklearn.model_selection import train_test_splits
 from utils.helper import train_loader
 # plot
 import matplotlib.pyplot as plt
 
-
 ##########################################################
 # %% Load Data
 ##########################################################
-# LOAD data
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_100_5_sliced_AAL')
 # convert to functional connectivity
-connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation')
-# adding threshold
-connectivity_matrices, _ = threshold(connectivity_matrices)
-
-### inital and node/edge embeddings
-# H_0 = node_embed(connectivity_matrices, mask_coord='../data/AAL_coordinates.npy')
-# torch.save(H_0, "./data/271_100_5_sliced_AAL_node.pt")
-# H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
-H_0 = torch.load("./data/271_100_5_sliced_AAL_node.pt")
-
-sparse_adj_list = sym_normalize_adj(connectivity_matrices)
+connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
-
-
 ##########################################################
 # %% initialise mode and
 ##########################################################
+
 print("--------> Using ", device)
-net = GCN(H_0.shape[2], 2)
+net = Linear(connectivity_matrices.shape[1], 1)
 net.to(device)
 
 optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-criterion = torch.nn.NLLLoss().to(device)
+criterion = torch.nn.BCEWithLogitsLoss().to(device)
 
 loss_values, testing_acc = [], []
 
@@ -57,14 +41,15 @@ for epoch in range(50):
     running_loss = 0
     correct = 0
     total = 0
-    for batch_id, data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
-        # Preparing Data
+    for batch_id, data in enumerate(
+            train_loader(mode='train', input=connectivity_matrices, target=label, feature=H_0)()):
+# Preparing Data
         input_data, label_data, feat_data = data
         input_data = input_data.to(device)
         feat_data = feat_data.to(device)
         # Feedforward
         optimizer.zero_grad()
-
+        '''
         predict = net((feat_data, input_data))
 
         out = torch.squeeze(predict.detach().cpu())
@@ -98,7 +83,7 @@ net.eval()
 with torch.no_grad():
     correct = 0
     total = 0
-    for batch in train_loader(mode='test', input=sparse_adj_list, target=label, feature=H_0)():
+    for batch in train_loader(mode='test', input=sparse_adj_list, feature=H_0, target=label)():
         input_data, label_data, feat_data = batch
         input_data = input_data.to(device)
         feat_data = feat_data.to(device)
@@ -113,6 +98,7 @@ with torch.no_grad():
         correct += pred.eq(label_data).sum().item()
         total += len(label_data)
     print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
+
 
 #########################################################
 # %% Plot result
@@ -132,3 +118,4 @@ plt.title('Accuracy')
 plt.legend()
 plt.savefig('accuracy.png')
 plt.show()
+'''
