@@ -19,25 +19,25 @@ import matplotlib.pyplot as plt
 ##########################################################
 # LOAD data
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_100_5_sliced_AAL',
-                                            # label=['CN', 'AD'],
-                                           connectivity=False)
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_100_5_sliced_AAL')
 # convert to functional connectivity
-connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation')
+connectivity_matrices = signal_to_connectivities(ROIs[:3], kind='correlation')
 # adding threshold
 connectivity_matrices, _ = threshold(connectivity_matrices)
-# inital and node/edge embeddings
+
+### inital and node/edge embeddings
 # H_0 = node_embed(connectivity_matrices, dataDir='data')
 # torch.save(H_0, "./data/271_100_5_sliced_AAL_node.pt")
-H_0 = torch.load("./data/271_100_5_sliced_AAL_node.pt")
 # H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
+H_0 = torch.load("./data/271_100_5_sliced_AAL_node.pt")[:3]
 
 sparse_adj_list = sym_normalize_adj(connectivity_matrices)
 # sparse_adj_list = Variable(sparse_adj_list, requires_grad=False).to(device)
 
-labels = [x if (x == "CN") else "CD" for x in labels]
+labels = [x if (x == "CN") else "CD" for x in labels[:3]]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
+
 ##########################################################
 # %% initialise mode and
 ##########################################################
@@ -67,13 +67,15 @@ for epoch in range(100):
 
         out = torch.squeeze(predict.detach().cpu())
         pred = out > 0.5
-
         correct += (pred == label_data).sum()
+        # pred = out.max(dim=1)[1]
+        # correct += pred.eq(label_data).sum().item()
 
         total += len(label_data)
 
         # Compute the loss
-        loss = Variable(criterion(out, label_data) + args.weight_decay * net.l2_loss(), requires_grad=True)
+        loss = Variable(criterion(out, label_data), requires_grad=True)
+        # F.nll_loss(out, label_data)
         # Calculate gradients.
         loss.backward()
         # Minimise the loss according to the gradient.

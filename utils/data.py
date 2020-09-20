@@ -11,12 +11,13 @@ from nilearn.connectome import ConnectivityMeasure
 
 def threshold(correlation_matrices, threshold=1):
     '''
-    Load the Saved 3D ROI signals
+    filter the functional connectivity with percentage
     Params :
     --------
         - correlation_matrices (m * n * n np.array) : the weighted adjacency matrices
         - threshold (float) : percentage
     Returns :
+    --------
         - adjacency matrix in n * n format, with diagonal 0
         - list of nx.graph
         TODO: allow percentage argument
@@ -93,35 +94,27 @@ def edge_embed(dataDir='../data', dataset='271_AAL', connectivity=True, verbose=
     TODO: edge embedding using correlation, partial correslation and L2 distance
     Params :
     --------
-        - dataDir (str) : the path of the data directory
-        - dataset (str) : the name of the dataset
-        - connectivity (bool) :
+        -
     Returns :
-        - the signals of brain
+        -
     '''
-    # coordinate = torch.tensor(np.load('../data/' + mask_name + "_coordinates.npy", allow_pickle=True), dtype=torch.float)
-
     pass
 
 
 def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True, vectorize=False):
     '''
-    extract connectivities from time series signals
+    extract functional connectivity from time series signals
     Params :
     --------
-        - signals ((num_subject, time_frame, num_ROI) np.array) : the ROI signals
-        - TODO: documentation
+        - signals (np.array {um_subject, time_frame, num_ROI}) : the ROI signals
     Returns :
     --------
-        - the functional connectivity matrix
-        - type : numpy matrix or numpy vector
+        - (np.ndarray {num_subjects, ROI, ROI}) : functional connectivity matrix
     '''
     # define a correlation measure
     correlation_measure = ConnectivityMeasure(kind=kind, discard_diagonal=discard_diagonal, vectorize=vectorize)
     # transform to connectivity matrices
-    functional_connectivity = correlation_measure.fit_transform(signals)
-
-    return functional_connectivity
+    return correlation_measure.fit_transform(signals)
 
 def list_2_tensor(list_matrix):
     '''
@@ -135,29 +128,29 @@ def list_2_tensor(list_matrix):
     '''
     return torch.stack([x for x in list_matrix], dim=0)
 
-def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, connectivity=True, verbose=False):
+def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=False):
     '''
     Load the Saved 3D ROI signals
     Params :
     --------
         - dataDir (str) : the path of the data directory
         - dataset (str) : the name of the dataset
-        - connectivity (bool) :
+        - label (list str) : the labels needed TODO: latter
     Returns :
-        - the signals of brain or functional connectivities
-        TODO: documentation
+        - subjects_list (m*t*ROIs np.array) :  time series signal data (271, 140, 116)
+        - label_list (np.array {num_subject}) : the data labels ['CN', 'MCI' ... ]
+        - classes_idx (np.array {num_subject}) : the label encoded index of data labels [0, 3 ... ]
     '''
     subjects_list = np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True)
     label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
+
+    ### only take the specified labels in the list
     if label != None:
         select_idx = [i for i, x in enumerate(label_list) if x == "CN" or x =="AD"]
         subjects_list = subjects_list[select_idx]
         label_list = label_list[select_idx]
 
     classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
-
-    if connectivity:
-        subjects_list = signal_to_connectivities(subjects_list)
 
     if verbose:
         # TODO: print the information
@@ -280,10 +273,10 @@ def chebyshev_polynomials(adj, k):
 
 if __name__ == "__main__":
     # LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(connectivity=False)
+    ROI_signals, labels, labels_idex = load_fmri_data()
     # convert to functional connectivity
     connectivities = signal_to_connectivities(ROI_signals, kind='correlation')
-    connectivities, _ = threshold(connectivities[:3])
+    connectivities, _ = threshold(connectivities[:2])
 
     # inital node embeddings
     H_0 = node_embed(connectivities)
