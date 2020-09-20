@@ -26,7 +26,7 @@ connectivity_matrices = signal_to_connectivities(ROIs[:3], kind='correlation')
 connectivity_matrices, _ = threshold(connectivity_matrices)
 
 ### inital and node/edge embeddings
-# H_0 = node_embed(connectivity_matrices, dataDir='data')
+# H_0 = node_embed(connectivity_matrices, mask_coord='../data/AAL_coordinates.npy')
 # torch.save(H_0, "./data/271_100_5_sliced_AAL_node.pt")
 # H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
 H_0 = torch.load("./data/271_100_5_sliced_AAL_node.pt")[:3]

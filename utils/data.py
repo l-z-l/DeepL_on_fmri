@@ -9,20 +9,20 @@ import bct
 import torch
 from nilearn.connectome import ConnectivityMeasure
 
+
 def threshold(correlation_matrices, threshold=1):
     '''
-    filter the functional connectivity with percentage
+    filter the functional connectivity based on connectivity strength
     Params :
     --------
         - correlation_matrices (m * n * n np.array) : the weighted adjacency matrices
-        - threshold (float) : percentage
+        - threshold (float) : percentage to keep
     Returns :
     --------
-        - adjacency matrix in n * n format, with diagonal 0
-        - list of nx.graph
-        TODO: allow percentage argument
+        - (m * n * n np.array), with diagonal 0
+        - list of nx.graph TODO: latter
+        TODO: Zelun allow percentage argument latter
     '''
-    # Creates graph using the data of the correlation matrix
     # graph_list = []
     for i, matrix in enumerate(correlation_matrices):
         # node is not self connected
@@ -30,8 +30,7 @@ def threshold(correlation_matrices, threshold=1):
 
         mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
 
-        # THRESHOLD: remove WHEN abs(connectivity) < mean + 1.5 * std
-        # reduced from over 6000 to ~= 600 around 13.36%, since the data is normalised
+        # THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
         matrix[abs(matrix) <= (mean + 1 * std)] = 0
         ### convert to nx.graph
         # g = nx.from_numpy_matrix(matrix)
@@ -43,25 +42,25 @@ def threshold(correlation_matrices, threshold=1):
     return correlation_matrices, None
 
 
-def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True, dataDir='../data'):
+def node_embed(correlation_matrices, mask_coord='../data/AAL_coordinates.npy', hand_crafted=True):
     '''
     embed each node
     Params :
     --------
         - correlation_matrices (m * n * n np.array) : the weighted adjacency matrices
-        - hand_crafted (bool) : using hand_engineered feature or vector embedding
+        - mask_coord (str) : the name of the mask
+        - hand_crafted (bool) : using hand_engineered feature or vector embedding TODO: latter
     Returns :
-        - adjacency matrix in (n_subjects, ) format, with diagonal 0
-        TODO: Documentation + allow node2Vec embed
-        :param dataDir:
+        - (n * nROI * nFeat torch.tensor) : the initial node embeddings
     '''
-    coordinate = torch.tensor(np.load(dataDir + '/' + mask_name + "_coordinates.npy", allow_pickle=True), dtype=torch.float)
-    print(coordinate.shape)
+    ### load coordinates of mask
+    coordinate = torch.tensor(np.load(mask_coord, allow_pickle=True), dtype=torch.float)
 
+    ### node embeddings using graph local measures
     H = []
     for i, matrix in enumerate(correlation_matrices):
-        # node embeddings using graph local measures
         graph_measure = {
+            # 1 node degrees
             "degree": bct.degrees_und(matrix),
             # 2 node strength
             "node_strength": bct.strengths_und(matrix),
@@ -84,10 +83,12 @@ def node_embed(correlation_matrices, mask_name='AAL', hand_crafted=True, dataDir
         vec = []
         for key, val in graph_measure.items():
             vec.append(val)
+        # add coordinates of the ROIs
         H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
         H.append(H_i)
 
     return list_2_tensor(H)
+
 
 def edge_embed(dataDir='../data', dataset='271_AAL', connectivity=True, verbose=True):
     '''
@@ -116,17 +117,20 @@ def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True,
     # transform to connectivity matrices
     return correlation_measure.fit_transform(signals)
 
-def list_2_tensor(list_matrix):
+
+def list_2_tensor(list_matrix, axis=0):
     '''
-    extract connectivities from time series signals
+    concatenate list element to form a ndTensor
     Params :
     --------
-        - list_tensors : list of tenosrs (2d or 3d)
+        - list_matrix : list of tensors (2d or 3d)
+        - axis : the axis of concatenation/stack
     Returns :
     --------
-        - tensor with dim 0 as num
+        - tensor with the first dim as num N
     '''
-    return torch.stack([x for x in list_matrix], dim=0)
+    return torch.stack([x for x in list_matrix], dim=axis)
+
 
 def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=False):
     '''
@@ -137,7 +141,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=Fal
         - dataset (str) : the name of the dataset
         - label (list str) : the labels needed TODO: latter
     Returns :
-        - subjects_list (m*t*ROIs np.array) :  time series signal data (271, 140, 116)
+        - subjects_list (m * t * ROIs np.array) :  time series signal data (271, 140, 116)
         - label_list (np.array {num_subject}) : the data labels ['CN', 'MCI' ... ]
         - classes_idx (np.array {num_subject}) : the label encoded index of data labels [0, 3 ... ]
     '''
@@ -146,7 +150,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=Fal
 
     ### only take the specified labels in the list
     if label != None:
-        select_idx = [i for i, x in enumerate(label_list) if x == "CN" or x =="AD"]
+        select_idx = [i for i, x in enumerate(label_list) if x == "CN" or x == "AD"]
         subjects_list = subjects_list[select_idx]
         label_list = label_list[select_idx]
 
@@ -159,6 +163,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=Fal
 
     return subjects_list, label_list, classes_idx
 
+### not used rn
 def sample_mask(idx, l):
     """
     Create mask.
@@ -167,10 +172,12 @@ def sample_mask(idx, l):
     mask[idx] = 1
     return np.array(mask, dtype=np.bool)
 
+
 def sparse_to_tuple(sparse_mx):
     """
     Convert sparse matrix to tuple representation.
     """
+
     def to_tuple(mx):
         if not sp.isspmatrix_coo(mx):
             mx = mx.tocoo()
@@ -187,18 +194,19 @@ def sparse_to_tuple(sparse_mx):
 
     return sparse_mx
 
+
 def normalize_features(mx_list):
     '''
-    Symmetrically normalize adjacency matrix.
+    normalize adjacency matrix.
     Params :
     --------
-        - adj (n * n torch.tensor) : vontaining only 0 or 1
+        - adj (n * n torch.tensor) : containing only 0 or 1
     Returns :
-        TODO: Zelun check formula
+        TODO: Zelun check formula plz, but not first priority
+        - (n * nROI * nFeat torch.tensor) : the normalised with nodal degrees
     '''
     matrices = []
     for i, mx in enumerate(mx_list):
-        # mx = sp.coo_matrix(mx)
         rowsum = np.array(mx.sum(1))
         r_inv = np.power(rowsum, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
@@ -207,46 +215,50 @@ def normalize_features(mx_list):
         matrices.append(torch.as_tensor(mx))
     return list_2_tensor(matrices)
 
+
 def sym_normalize_adj(connectivity_matrices):
     '''
     Symmetrically normalize adjacency matrix.
     Params :
     --------
-        - adj (n * n torch.tensor) : vontaining only 0 or 1
+        - connectivity_matrices (n * nROI * nROI torch.tensor) : vontaining only 0 or 1
     Returns :
         - list (n * torch.sparse.FloatTensor(indices, values, shape))
     '''
+    # TODO: Zelun read this thoroughly
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
-
-        adj[adj != 0] = 1 # weighted graph
-        adj += sp.eye(adj.shape[0]) # A^hat = A A+ I
-
+        adj[adj != 0] = 1  # weighted graph
+        adj += sp.eye(adj.shape[0])  # A^hat = A A+ I
         adj = sp.coo_matrix(adj)
+
         rowsum = np.array(adj.sum(1))  # D
         d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5
-        adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt) #.tocsr() # D^-0.5AD^0.5
+        adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
         sparse_matrices.append(sparse_mx_to_torch_sparse_tensor(adj))
-    return sparse_matrices # list_2_tensor(sparse_matrices)
+    return sparse_matrices  # list_2_tensor(sparse_matrices)
+
 
 def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     '''
     Convert a scipy sparse matrix to a torch sparse tensor.
     Params :
     --------
-        - sparse_mx (csc matrix) :
+        - sparse_mx (n*n csc_matrix) :
     Returns :
         - torch.sparse.FloatTensor(indices, values, shape)
     '''
-    sparse_mx = sparse_mx.tocoo().astype(np.float32) # convert to coordinate, like to_sparse
-    indices = torch.from_numpy(
-        np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
+    # since the adj is symmetrical, can be either csc or csr
+    sparse_mx = sparse_mx.tocoo().astype(np.float32)  # convert to coordinate, like to_sparse
+    ### extract attributes from sparse_mx
+    indices = torch.from_numpy(np.vstack((sparse_mx.row, sparse_mx.col)).astype(np.int64))
     values = torch.from_numpy(sparse_mx.data)
     shape = torch.Size(sparse_mx.shape)
     return torch.sparse.FloatTensor(indices, values, shape)
 
+### not used rn
 def chebyshev_polynomials(adj, k):
     """
     Calculate Chebyshev polynomials up to order k. Return a list of sparse matrices (tuple representation).
@@ -270,6 +282,7 @@ def chebyshev_polynomials(adj, k):
         t_k.append(chebyshev_recurrence(t_k[-1], t_k[-2], scaled_laplacian))
 
     return sparse_to_tuple(t_k)
+
 
 if __name__ == "__main__":
     # LOAD data
