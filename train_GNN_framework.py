@@ -45,7 +45,7 @@ print("--------> Using ", device)
 net = GCN(H_0.shape[2], 2)
 net.to(device)
 
-optimizer = optim.Adam(net.parameters(), lr=args.learning_rate)
+optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=1e-3)
 criterion = torch.nn.BCEWithLogitsLoss().to(device)
 
 loss_values, testing_acc = [], []

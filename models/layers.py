@@ -66,6 +66,7 @@ class GraphConv(nn.Module):
 
         # if self.bias is not None:
         #     out += self.bias
+
         out_list = list_2_tensor(out_list)
 
         return self.activation(out_list), adj
