@@ -7,7 +7,7 @@ from utils.config import args
 
 class LSTM(nn.Module):
     def __init__(self, input_size=116, hidden_layer_size=32, num_layers=1,
-                 output_size=1):
+                 output_size=2):
         super().__init__()
         self.hidden_layer_size = hidden_layer_size
 
@@ -21,18 +21,18 @@ class LSTM(nn.Module):
         #                     torch.zeros(num_layers, 1, self.hidden_layer_size))
 
         # self.log_softmax = nn.LogSoftmax(dim=1)
-        self.CONV = nn.Sequential(
-            nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size=3, padding=5),
-            nn.ReLU(),
-            nn.MaxPool1d(3),
-            nn.BatchNorm1d(hidden_layer_size)
-        )
+        # self.CONV = nn.Sequential(
+        #     nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size=3, padding=5),
+        #     nn.ReLU(),
+        #     nn.MaxPool1d(3),
+        #     nn.BatchNorm1d(hidden_layer_size)
+        # )
 
         self.sig = nn.Sigmoid()
 
     def forward(self, input_seq):
-        lstm_out, (h, c) = self.lstm_1(input_seq)
-        lstm_out_1, (h, c) = self.lstm_2(lstm_out)
+        lstm_out, _ = self.lstm_1(input_seq)
+        lstm_out_1, _ = self.lstm_2(lstm_out)
         # lstm_out, self.hidden_cell = self.lstm(input_seq.view(len(input_seq), 1, -1), self.hidden_cell)
         # Batch size
         # output, _ = torch.max(lstm_out, 1)
@@ -45,7 +45,7 @@ class LSTM(nn.Module):
         output = lstm_out_1.reshape(len(input_seq), -1)
         # print(f"output shape {output.shape}")
         output = self.linear(output)
-        output = self.sig(output)
+        # output = self.sig(output)
         # print(f"lstm_out2 shape {lstm_out.shape}")
 
         return output

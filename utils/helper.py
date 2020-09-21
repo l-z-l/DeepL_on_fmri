@@ -54,10 +54,8 @@ def train_vec_loader(batch_size, input, target, mode='train'):
 
     return data_generator
 
-def train_loader(mode, input, target, feature=None):
+def train_loader(mode, input, target, feature=None, batchsize=64):
     # Batch size used when loading dat a
-    BATCHSIZE = 64
-
     assert len(input) == len(target), \
         "length of train_subject({}) should be the same as train_labels({})".format(
             len(input), len(target))
@@ -94,7 +92,7 @@ def train_loader(mode, input, target, feature=None):
             subjects_list.append(input_data[i])
             labels_list.append(label_data[i])
             feat_list.append(feat_data[i])
-            if len(subjects_list) == BATCHSIZE:
+            if len(subjects_list) == batchsize:
                 yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
                 subjects_list = []
                 labels_list = []
