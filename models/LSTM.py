@@ -6,7 +6,7 @@ from utils.config import args
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=functional_connectivities.shape[1], hidden_layer_size=100, num_layers=10,
+    def __init__(self, input_size, hidden_layer_size=100, num_layers=10,
                  output_size=2):
         super().__init__()
         self.hidden_layer_size = hidden_layer_size
