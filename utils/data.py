@@ -9,6 +9,17 @@ import bct
 import torch
 from nilearn.connectome import ConnectivityMeasure
 
+def checkNone(matrix_list):
+    '''
+    TODO: ROI_signals[155] = np.nan_to_num(ROI_signals[155])
+    Params :
+    --------
+        -
+    Returns :
+    --------
+    '''
+
+    return np.argwhere(np.isnan(ROI_signals))
 
 def threshold(correlation_matrices, threshold=1):
     '''
@@ -42,7 +53,7 @@ def threshold(correlation_matrices, threshold=1):
     return correlation_matrices, None
 
 
-def node_embed(correlation_matrices, mask_coord='../data/AAL_coordinates.npy', hand_crafted=True):
+def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
     '''
     embed each node
     Params :
@@ -54,7 +65,7 @@ def node_embed(correlation_matrices, mask_coord='../data/AAL_coordinates.npy', h
         - (n * nROI * nFeat torch.tensor) : the initial node embeddings
     '''
     ### load coordinates of mask
-    coordinate = torch.tensor(np.load(mask_coord, allow_pickle=True), dtype=torch.float)
+    coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
 
     ### node embeddings using graph local measures
     H = []
@@ -207,12 +218,12 @@ def normalize_features(mx_list):
     '''
     matrices = []
     for i, mx in enumerate(mx_list):
-        rowsum = np.array(mx.sum(1))
+        rowsum = np.array(mx.sum(0))
         r_inv = np.power(rowsum, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
         r_mat_inv = sp.diags(r_inv)
-        mx = r_mat_inv.dot(mx)
-        matrices.append(torch.as_tensor(mx))
+        mx = r_mat_inv.dot(mx.T).T
+        matrices.append(torch.as_tensor(mx, dtype=torch.float))
     return list_2_tensor(matrices)
 
 
@@ -287,14 +298,15 @@ def chebyshev_polynomials(adj, k):
 
 if __name__ == "__main__":
     # LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data()
+    ROI_signals, labels, labels_idex = load_fmri_data(dataset='273_MSDL')
+    # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     # convert to functional connectivity
     connectivities = signal_to_connectivities(ROI_signals, kind='correlation')
-    connectivities, _ = threshold(connectivities[:2])
-
-    # inital node embeddings
-    H_0 = node_embed(connectivities)
-    H_0 = normalize_features(H_0)
-    # initial edge embeddings
-    W_0 = torch.as_tensor(connectivities)  # TODO: implement edge_embed() function
-    sparse_adj_list = sym_normalize_adj(connectivities)
+    # connectivities, _ = threshold(connectivities[:2])
+    #
+    # # inital node embeddings
+    # H_0 = node_embed(connectivities)
+    # H_0 = normalize_features(H_0)
+    # # initial edge embeddings
+    # W_0 = torch.as_tensor(connectivities)  # TODO: implement edge_embed() function
+    # sparse_adj_list = sym_normalize_adj(connectivities)

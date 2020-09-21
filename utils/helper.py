@@ -11,20 +11,25 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import random_split
 import random
 
-def train_vec_loader(batch_size, input, target):
+def train_vec_loader(batch_size, input, target, mode='train'):
     assert len(input) == len(target), \
         "length of train_subject({}) should be the same as train_labels({})".format(
             len(input), len(target))
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label, train_feat, test_feat = train_test_split(input, target,
-                                                                                             test_size=0.2, random_state=random.randrange(100))
-    # train_test_split(input, target, test_size=0.2)
+    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.2, random_state=random.randrange(100))
 
     # print("train shape {} & {}".format(len(train_data), train_label.shape))
     # print("test shape {} & {}".format(len(test_data), test_label.shape))
     # print("test shape {} & {}".format(len(train_feat), len(test_feat)))
+
+    if mode == 'train':
+        input_data = train_data # convert to tensor
+        label_data = train_label
+    elif mode == 'test':
+        input_data = test_data # convert to tensor
+        label_data = test_label
 
     subject_length = len(input_data)
     index_list = list(range(subject_length))
@@ -34,21 +39,18 @@ def train_vec_loader(batch_size, input, target):
             random.shuffle(index_list)
         subjects_list = []
         labels_list = []
-        feat_list = []
         for i in index_list:
             subjects_list.append(input_data[i])
             labels_list.append(label_data[i])
-            feat_list.append(feat_data[i])
             if len(subjects_list) == batch_size:
-                yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
+                yield list_2_tensor(subjects_list), list_2_tensor(labels_list)
                 subjects_list = []
                 labels_list = []
-                feat_list = []
 
         # if the left sample is smaller than the batch size，
         # then the rest of the data form a mini-batch of len(subject_list)
         if len(subjects_list) > 0:
-            yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
+            yield list_2_tensor(subjects_list), list_2_tensor(labels_list)
 
     return data_generator
 

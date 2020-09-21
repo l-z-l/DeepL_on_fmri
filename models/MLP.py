@@ -20,19 +20,23 @@ class Linear(nn.Module):
 
         self.input_dim = input_dim
         self.output_dim = output_dim
+
         self.linear = nn.Linear(input_dim, output_dim)
+
         # self.MLP = nn.Sequential(
-        #     nn.Linear(input_dim, 1024),
+        #     nn.Linear(input_dim, 1000),
+        #     nn.Dropout(0.5),
         #     nn.ReLU(),
-        #     nn.Linear(1024, 512),
+        #     nn.Linear(1000, 128),
+        #     nn.Dropout(0.5),
         #     nn.ReLU(),
-        #     nn.Linear(512, 32),
+        #     nn.Linear(128, output_dim)
         # )
         ### weight initialisation
         for m in self.modules():
             if type(m) == nn.Linear:
-                torch.nn.init.xavier_normal_(m.weight)
+                torch.nn.init.uniform_(m.weight)
                 m.bias.data.fill_(0.01)
 
     def forward(self, x):
-        return self.linear(x)  # Each element i,j is a scalar in R. f(xi,proj_j)
+        return torch.sigmoid(self.linear(x))  # Each element i,j is a scalar in R. f(xi,proj_j)

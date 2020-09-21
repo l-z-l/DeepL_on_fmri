@@ -20,18 +20,20 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 # LOAD data
+dataset = '273_Havard_Oxford'
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_100_5_sliced_AAL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset=dataset)
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation')
 # adding threshold
 connectivity_matrices, _ = threshold(connectivity_matrices)
 
 ### inital and node/edge embeddings
-# H_0 = node_embed(connectivity_matrices, mask_coord='../data/AAL_coordinates.npy')
-# torch.save(H_0, "./data/271_100_5_sliced_AAL_node.pt")
+# H_0 = node_embed(connectivity_matrices, 'Havard_Oxford')
 # H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
-H_0 = torch.load("./data/271_100_5_sliced_AAL_node.pt")
+# torch.save(H_0, "./data/273_MSDL_node.pt")
+# H_0 = torch.load(f"./data/{dataset}_node.pt")
+H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 11))
 
 sparse_adj_list = sym_normalize_adj(connectivity_matrices)
 
@@ -39,12 +41,11 @@ labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 
-
 ##########################################################
 # %% initialise mode and
 ##########################################################
 print("--------> Using ", device)
-net = GCN(H_0.shape[2], 2)
+net = GCN(H_0.shape[2], 2, node_num=H_0.shape[1])
 net.to(device)
 
 optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
@@ -132,3 +133,4 @@ plt.title('Accuracy')
 plt.legend()
 plt.savefig('accuracy.png')
 plt.show()
+''''''
