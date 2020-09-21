@@ -241,9 +241,9 @@ def sym_normalize_adj(connectivity_matrices):
     for i, adj in enumerate(connectivity_matrices):
         adj[adj != 0] = 1  # weighted graph
         adj += sp.eye(adj.shape[0])  # A^hat = A + I
-        adj = sp.coo_matrix(adj)
+        rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
-        rowsum = np.array(adj.sum(1))  # D
+        adj = sp.coo_matrix(adj)
         d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix

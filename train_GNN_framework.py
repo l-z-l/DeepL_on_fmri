@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 # LOAD data
-dataset = '273_Havard_Oxford'
+dataset = '273_MSDL'
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset=dataset)
 # convert to functional connectivity
@@ -33,7 +33,7 @@ connectivity_matrices, _ = threshold(connectivity_matrices)
 # H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
 # torch.save(H_0, "./data/273_MSDL_node.pt")
 # H_0 = torch.load(f"./data/{dataset}_node.pt")
-H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 11))
+H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 20))
 
 sparse_adj_list = sym_normalize_adj(connectivity_matrices)
 
