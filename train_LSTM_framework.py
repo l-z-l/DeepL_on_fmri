@@ -60,12 +60,13 @@ for epoch in range(50):
         # pred = out > 0.5
         # correct += (pred == label_data).sum()
         pred = out.max(dim=-1)[-1]
+        out = out.squeeze()
         correct += pred.eq(label_data).sum().item()
 
         total += len(label_data)
 
         # Compute the loss
-        loss = Variable(criterion(out, label_data.long()), requires_grad=True)
+        loss = Variable(criterion(out, label_data), requires_grad=True)
         # F.nll_loss(out, label_data)
         # Calculate gradients.
         loss.backward()
