@@ -57,11 +57,14 @@ for epoch in range(50):
         predict = model(input_data)
 
         out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-        pred = out.max(dim=-1)[-1]
-        out = out.squeeze()
-        correct += pred.eq(label_data).sum().item()
+        ### BCE
+        pred = out > 0.5
+        correct += (pred == label_data).sum()
+
+        ### Cross Entropy
+        # pred = out.max(dim=-1)[-1]
+        # out = out.squeeze()
+        # correct += pred.eq(label_data).sum().item()
 
         total += len(label_data)
 
