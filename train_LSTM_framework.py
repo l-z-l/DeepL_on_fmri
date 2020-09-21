@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import numpy as np
 
 from utils.data import *
-from models.CNN import SpatialTemporalCNN
+from models.LSTM import LSTM
 from utils.config import args
 from utils.helper import train_vec_loader, train_loader
 
@@ -23,28 +23,25 @@ device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
 # convert to functional connectivity
 X = torch.as_tensor(ROIs, dtype=torch.float)
-X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, ROI, time_seq)
-
+# X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, ROI, time_seq)
+# X = x.permute # 271 * 140 * 116
+# X = X[:3]
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
 # %% initialise mode and
 ##########################################################
-model =
+model = LSTM()
 model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-loss = torch.nn.BCELoss().to(device)
+criterion = torch.nn.BCELoss().to(device)
 
 loss_values, testing_acc = [], []
 
 model.train()
-criterion = torch.nn.CrossEntropyLoss().to(device)
-
-loss_values, testing_acc = [], []
-
-model.train()
+# criterion = nn.BCELoss.to(device)
 
 for epoch in range(50):
     running_loss = 0
