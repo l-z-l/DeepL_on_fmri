@@ -6,6 +6,7 @@ from utils.config import args
 from torch.nn.init import xavier_normal_
 from utils.data import list_2_tensor
 
+
 class GraphConv(nn.Module):
     def __init__(self, input_dim, output_dim,
                  dropout=0.,
@@ -56,12 +57,12 @@ class GraphConv(nn.Module):
                     # print()
                     xw = torch.sparse.mm(mx, self.weight)
                 else:
-                    xw = torch.mm(mx, self.weight) # (20, 116, 16) (116, 2)  -> (20, 116, 2)
+                    xw = torch.mm(mx, self.weight)  # (20, 116, 16) (116, 2)  -> (20, 116, 2)
             else:
                 # initial pass
                 xw = self.weight
 
-            out = torch.sparse.mm(adj[i], xw) # (116, 116)  (20, 116, out_dim) -> (20, 116, out_dim)
+            out = torch.sparse.mm(adj[i], xw)  # (116, 116)  (20, 116, out_dim) -> (20, 116, out_dim)
             out_list.append(out)
 
         # if self.bias is not None:
@@ -70,6 +71,42 @@ class GraphConv(nn.Module):
         out_list = list_2_tensor(out_list)
 
         return self.activation(out_list), adj
+
+
+class FactorizedConvolution(nn.Module):
+    """
+    4 layers,
+    1x1, 1x3, 3x1, 1x1, which reduces half of the direct convolution parameters
+    """
+
+    def __init__(self, input_dim=1, output_dim=1, channel_dim=32, bottle_neck=True):
+        super(FactorizedConvolution, self).__init__()
+        layers = [nn.Conv2d(input_dim, channel_dim, 1, 1),  # 1*1*1*1
+                  nn.ReLU(),
+                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                  # padding = (0, 1) to remain original shape
+                  nn.ReLU(),
+                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+                  nn.ReLU(),
+                  nn.Conv2d(channel_dim, output_dim, 1, 1)
+                  ]
+        if bottle_neck == False:
+            layers = [nn.Conv2d(input_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                      nn.ReLU(),
+                      nn.Conv2d(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0))
+                      ]
+        self.identity_match_layer = nn.Conv2d(input_dim, output_dim, 1, 1)
+        self.layers = nn.Sequential(*layers)
+        self.relu = nn.ReLU()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+    def forward(self, x):
+        hidden = self.layers(x)
+        if self.input_dim != self.output_dim:
+            x = self.identity_match_layer(x)
+        x = self.relu(x + hidden)  # residual
+        return x
 
 
 class GraphAttention(nn.Module):
