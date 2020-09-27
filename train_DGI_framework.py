@@ -32,7 +32,7 @@ H_0 = node_embed(connectivity_matrices, 'MSDL')
 H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
 # torch.save(H_0, "./data/273_MSDL_node.pt")
 # H_0 = torch.load(f"./data/{dataset}_node.pt")
-# H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 11))
+# H_0 = torch.randn((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 50))
 
 sparse_adj_list = sym_normalize_adj(connectivity_matrices)
 
@@ -46,13 +46,12 @@ nb_nodes = H_0.shape[1]
 batch_size = 64
 
 net = DGI(H_0.shape[2], 200, nn.PReLU()).to(device)
-optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 criterion = nn.BCEWithLogitsLoss().to(device)
 
-loss_values, testing_acc = [], []
 net.train()
-
-for epoch in range(50):
+loss_values = []
+for epoch in range(200):
     running_loss = 0
     correct = 0
     total = 0
@@ -62,15 +61,15 @@ for epoch in range(50):
         adj = adj.to(device)
         feat_data = feat_data.to(device)
 
+        # Feedforward
+        optimizer.zero_grad()
+
         idx = np.random.permutation(nb_nodes)
         shuf_fts = feat_data[:, idx, :]
 
         lbl_1 = torch.ones(feat_data.shape[0], nb_nodes)
         lbl_2 = torch.zeros(feat_data.shape[0], nb_nodes)
         lbl = torch.cat((lbl_1, lbl_2), 1).to(device)
-
-        # Feedforward
-        optimizer.zero_grad()
 
         predict = net(feat_data, shuf_fts, adj, True, None, None, None)
 
@@ -80,3 +79,13 @@ for epoch in range(50):
         # Calculate gradients.
         loss.backward()
         optimizer.step()
+    loss_values.append(loss.item())
+    print(f'Num epochs: {epoch}, Loss: {loss.item()}')
+
+print('Finished Training Trainset')
+plt.plot(np.array(loss_values), label = "Training Loss function")
+plt.xlabel('Number of epoches')
+plt.title('Loss value')
+plt.legend()
+# plt.savefig('loss.png')
+plt.show()

@@ -20,10 +20,10 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='interpolation/270_every_10_MAX_sliced_AAL')
 # convert to functional connectivity
 X = torch.as_tensor(ROIs, dtype=torch.float)
-X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, ROI, time_seq)
+X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, time_seq, ROIS)
 
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
@@ -35,7 +35,6 @@ model = SpatialTemporalCNN()
 model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-loss = torch.nn.BCELoss().to(device)
 
 loss_values, testing_acc = [], []
 
@@ -46,7 +45,7 @@ loss_values, testing_acc = [], []
 
 model.train()
 
-for epoch in range(50):
+for epoch in range(200):
     running_loss = 0
     correct = 0
     total = 0
@@ -84,6 +83,7 @@ for epoch in range(50):
     loss_values.append(loss.item())
     testing_acc.append(int(correct)/total * 100)
     print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, toal: {total}, Accuracy: {int(correct)/total * 100}")
+
 '''
 # testing
 model.eval()
@@ -105,18 +105,18 @@ with torch.no_grad():
         correct += pred.eq(label_data).sum().item()
         total += len(label_data)
     print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
-
+'''
 #########################################################
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label = "Training Loss function")
+plt.plot(np.array(loss_values), label="Training Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
-plt.savefig('loss.png')
+# plt.savefig('loss.png')
 plt.show()
-
+'''
 print('Finished Testing Trainset')
 plt.plot(np.array(testing_acc), label="Accuracy function")
 plt.xlabel('Number of epoches')

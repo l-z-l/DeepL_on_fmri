@@ -301,7 +301,7 @@ if __name__ == "__main__":
     ROI_signals, labels, labels_idex = load_fmri_data(dataset='273_MSDL')
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     # convert to functional connectivity
-    connectivities = signal_to_connectivities(ROI_signals, kind='correlation')
+    connectivities = signal_to_connectivities(ROI_signals, kind='correlation', vectorize=True)
     # connectivities, _ = threshold(connectivities[:2])
     #
     # # inital node embeddings

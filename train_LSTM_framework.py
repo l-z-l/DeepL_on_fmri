@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='interpolation/270_every_10_MAX_sliced_AAL')
 # convert to functional connectivity
 X = torch.as_tensor(ROIs, dtype=torch.float)
 # X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, ROI, time_seq)

@@ -144,6 +144,13 @@ class FactorizedConvolution(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
 
+        ### weight initialisation
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                xavier_normal_(m.weight,
+                               gain=math.sqrt(2. / (1 + 0.01)))  # Gain adapted for LeakyReLU activation function
+                m.bias.data.fill_(0.01)
+
     def forward(self, x):
         hidden = self.layers(x)
         if self.input_dim != self.output_dim:
