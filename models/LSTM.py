@@ -6,8 +6,8 @@ from utils.config import args
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=116, hidden_layer_size=32, num_layers=1,
-                 output_size=2):
+    def __init__(self, input_size=48, hidden_layer_size=32, num_layers=1,
+                 output_size=1):
         super().__init__()
         self.hidden_layer_size = hidden_layer_size
 
@@ -21,16 +21,21 @@ class LSTM(nn.Module):
         #                     torch.zeros(num_layers, 1, self.hidden_layer_size))
 
         # self.log_softmax = nn.LogSoftmax(dim=1)
-        # self.CONV = nn.Sequential(
-        #     nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size=3, padding=5),
-        #     nn.ReLU(),
-        #     nn.MaxPool1d(3),
-        #     nn.BatchNorm1d(hidden_layer_size)
-        # )
+        self.CONV = nn.Sequential(
+            nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size=2, padding=3),
+            nn.ReLU(),
+            nn.MaxPool1d(10)
+            # nn.BatchNorm1d(hidden_layer_size)
+        )
+        self.conv1 = nn.Conv1d(hidden_layer_size,hidden_layer_size, kernel_size=2, padding=3)
+        self.max = nn.MaxPool1d(10)
 
         self.sig = nn.Sigmoid()
 
     def forward(self, input_seq):
+        ### 2 layer LSTM
+        lstm_out, (h, c) = self.lstm_1(input_seq)
+        lstm_out_1, (h, c) = self.lstm_2(lstm_out)
         lstm_out, _ = self.lstm_1(input_seq)
         lstm_out_1, _ = self.lstm_2(lstm_out)
         # lstm_out, self.hidden_cell = self.lstm(input_seq.view(len(input_seq), 1, -1), self.hidden_cell)
@@ -43,9 +48,36 @@ class LSTM(nn.Module):
         # print(f"output shape {output.shape}")
         output = []
         output = lstm_out_1.reshape(len(input_seq), -1)
-        # print(f"output shape {output.shape}")
         output = self.linear(output)
+        output = self.sig(output)
+        # output, _ = torch.max(lstm_out, 1)
+        ##### CNN LSTM
+        # lstm_out, (h, c) = self.lstm_1(input_seq)
+        # lstm_out = lstm_out.permute(0, 2, 1)
+        # output = self.CONV(lstm_out)
+        # output = torch.max(output, 2)[0]  # global max for CNN
+        # output = self.linear(output)
+        # output = self.sig (output)
+
+        # Global Max pooling
+
         # output = self.sig(output)
         # print(f"lstm_out2 shape {lstm_out.shape}")
 
         return output
+
+
+    # Potential issue with VAE
+        # Can't learn the representation to be classified
+        # Current analysis strategy
+        #    ignore the temporal information
+        #   Try temporal functional connectivity
+        #   K-means clustering
+        #     50 cluster
+        #     50 connectivity temporal matrix
+        #     100 fc-temporal connectivity as the input
+    # Try ADHD dataset
+    # Check the confusion matrix of SVM
+    # Find paper on ADNI dataset
+    # Try artificial data having distinct difference
+        # Try adding dictinctive feature/noise to the data/functional connectivity to see if the DL model work
