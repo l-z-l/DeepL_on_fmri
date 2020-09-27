@@ -296,6 +296,106 @@ def chebyshev_polynomials(adj, k):
     return sparse_to_tuple(t_k)
 
 
+######################################
+#
+# DATA augment related functions
+#
+######################################
+
+def augment_with_window(window_size, subjects_list, label_list, stride_size=1):
+    '''
+    sliding window method
+    :param window_size: the actual window size
+    :param subjects_list: np.load('/content/drive/My Drive/data/ADNI_denoised/179_AAL.npy', allow_pickle=True)
+    :param label_list: np.load('/content/drive/My Drive/data/ADNI/128_AAL_label.npy', allow_pickle=True)
+    :param stride_size: skip number of frames
+    :return: new augmented subjects and labels
+    '''
+    new_subjects_slices = subjects_list[:, 0:(window_size), :]
+    print(new_subjects_slices.shape)
+    new_label_slices = label_list
+
+    for i in range(1, 140 - window_size + 1, stride_size):
+        new_subjects_slices = np.append(new_subjects_slices, subjects_list[:, i:(i + window_size), :], axis=0)
+        new_label_slices = np.append(new_label_slices, label_list)
+
+    return new_subjects_slices, new_label_slices
+
+
+# ### Example usage
+#
+# stride = 5
+# window = 100
+# new_subjects_slices, new_label_slices = augment_with_window(window, subjects_de_more_list, label_de_more_list, stride)
+# print("new subject_size is {}, stride size is {}, window size is {}, on denoised data".format(new_subjects_slices.shape, stride, 20))
+# np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL.npy".format(stride), new_subjects_slices) #(15488, 20, 116)
+# np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL_label.npy".format(stride), new_label_slices) #15488
+# print("check if works np.load('/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL.npy', allow_pickle=True)".format(stride))
+
+
+def interpolation_frames(oneside_window_size, subjects_list, stride_size, func, start_index):
+    '''
+    This is the helper function of @ref augment_with_selection
+    :param oneside_window_size: 1/2 window actually, e.g. actual_window = 3, then window = 1, actual_window = 5, then window = 2
+    :param subjects_list: np.load('/content/drive/My Drive/data/ADNI_denoised/179_AAL.npy', allow_pickle=True)
+    :param label_list: np.load('/content/drive/My Drive/data/ADNI/128_AAL_label.npy', allow_pickle=True)
+    :param stride_size: skip ever n number of frames
+    :param func: function name: MIN, MAX, MEAN, SINGLE. when apply SINGLE, window must be 0.
+    :param start_index: which stride index are we up to # as we can append the frames more easilly
+    :return: when the start_index = i, the subjects list has been returned.
+    '''
+    new_subjects_list = subjects_list[:, start_index::stride_size, :]
+    for s in range(len(subjects_list)):
+        for i in range(oneside_window_size, stride_size, 140 - oneside_window_size):
+            val = subjects_list[s, (i - oneside_window_size):(i + oneside_window_size + 1), :]
+        if oneside_window_size < 1:
+            new_val = val
+        if func == "MAX":
+            new_val = np.max(val, axis=0)  # (116,)
+        if func == "MIN":
+            new_val = np.min(val, axis=0)
+        if func == "MEAN":
+            new_val = np.mean(val, axis=0)
+        new_subjects_list[s, i, :] = new_val  # after taking min/max/mean inside window
+    return new_subjects_list
+
+
+def augment_with_selection(oneside_window_size, subjects_list, label_list, stride_size, func):
+    '''
+    New methods, interpolation, which could cover along the time with a smaller size by
+    select every stride_size number of frames, and do a function over the window frames
+    to capture more features.
+    :param oneside_window_size: 1/2 window actually, e.g. actual_window = 3, then window = 1, actual_window = 5, then window = 2
+    :param subjects_list: np.load('/content/drive/My Drive/data/ADNI_denoised/179_AAL.npy', allow_pickle=True)
+    :param label_list: np.load('/content/drive/My Drive/data/ADNI/128_AAL_label.npy', allow_pickle=True)
+    :param stride_size: skip number of frames
+    :param func: function name: MIN, MAX, MEAN, SINGLE. when apply SINGLE, window must be 0.
+    :return: append the subjects together along the axis 0
+    '''
+    new_subjects_list = interpolation_frames(oneside_window_size, subjects_list, stride_size, func, 0)
+    new_label_list = label_list
+    for j in range(1, stride_size):
+        new_subjects_list = np.append(new_subjects_list,
+                                      interpolation_frames(oneside_window_size, subjects_list, stride_size, func, j),
+                                      axis=0)
+        new_label_list = np.append(new_label_list, label_list)
+        print(new_subjects_list.shape)
+        print(new_label_list.shape)
+    return new_subjects_list, new_label_list
+
+
+# ### Example usage
+# stride = 10
+# window = 0 #this window is 1/2 window actually, e.g. actual_window = 3, then window = 1, actual_window = 5, then window = 2
+# func_name = "MAX" # MIN, MAX, MEAN, SINGLE when apply SINGLE, window must be 0,
+# new_subjects_slices, new_label_slices = augment_with_selection(window, subjects_de_more_list, label_de_more_list, stride, func_name)
+# print("new subject_size is {}, stride size is {}, window size is {}, on denoised data".format(new_subjects_slices.shape, stride, window))
+# np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_every_{}_{}_sliced_AAL.npy".format(stride, func_name), new_subjects_slices)
+# np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_every_{}_{}_sliced_AAL_label.npy".format(stride, func_name), new_label_slices)
+# print("saved")
+# #116 2710 14
+
+
 if __name__ == "__main__":
     # LOAD data
     ROI_signals, labels, labels_idex = load_fmri_data(dataset='273_MSDL')
