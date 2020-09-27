@@ -20,8 +20,10 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='273_MSDL')
 # convert to functional connectivity
+# Only use with AAL
+# ROIs[:, :, :90]
 X = torch.as_tensor(ROIs, dtype=torch.float)
 # X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, ROI, time_seq)
 # X = x.permute # 271 * 140 * 116
@@ -34,9 +36,28 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
 model = LSTM()
 model.to(device)
-
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 criterion = torch.nn.BCELoss().to(device)
+
+##########################################################
+# %% Artificial Data
+##########################################################
+positive_index = []
+for index, num in enumerate(label):
+    if num == 1:
+        positive_index.append(index)
+# Taking positive sample from X
+# X_1 = X
+print(positive_index)
+for index, num in enumerate(X):
+    if index in positive_index:
+        # print(f"{index} {X[index]} {X[index].shape}")
+        X[index] = X[index] + 15
+        # print(f"{index} {X[index]} {X[index].shape}")
+# print()
+
+
+
 
 loss_values, testing_acc = [], []
 
@@ -50,6 +71,7 @@ for epoch in range(50):
     for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='train', input=X, target=label)()):
         # Preparing Data
         input_data, label_data = data
+        # print()
         input_data = input_data.to(device)
         # Feedforward
         optimizer.zero_grad()
@@ -84,4 +106,23 @@ for epoch in range(50):
     #       % (epoch, running_loss / total, correct, total))
     loss_values.append(loss.item())
     testing_acc.append(int(correct)/total * 100)
-    print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, toal: {total}, Accuracy: {int(correct)/total * 100}")
+    print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
+
+#########################################################
+# %% Plot result
+#########################################################
+print('Finished Training Trainset')
+plt.plot(np.array(loss_values), label="Training Loss function")
+plt.xlabel('Number of epoches')
+plt.title('Loss value')
+plt.legend()
+plt.savefig('loss_LSTM.png')
+plt.show()
+
+print('Finished Testing Trainset')
+plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.xlabel('Number of epoches')
+plt.title('Accuracy')
+plt.legend()
+plt.savefig('accuracy_LSTM.png')
+plt.show()
