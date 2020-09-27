@@ -9,7 +9,6 @@ class SpatialTemporalCNN(nn.Module):
     """
 
     """
-
     def __init__(self, input_dim=1, output_dim=2):
         super(SpatialTemporalCNN, self).__init__()
         # self.l1 = nn.MaxPool2d((2, 1),1)  # max_pool on ROI level, no need for that, we are not images

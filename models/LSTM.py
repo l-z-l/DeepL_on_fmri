@@ -36,6 +36,17 @@ class LSTM(nn.Module):
         ### 2 layer LSTM
         lstm_out, (h, c) = self.lstm_1(input_seq)
         lstm_out_1, (h, c) = self.lstm_2(lstm_out)
+        lstm_out, _ = self.lstm_1(input_seq)
+        lstm_out_1, _ = self.lstm_2(lstm_out)
+        # lstm_out, self.hidden_cell = self.lstm(input_seq.view(len(input_seq), 1, -1), self.hidden_cell)
+        # Batch size
+        # output, _ = torch.max(lstm_out, 1)
+        # print(f"lstm_out shape {lstm_out.shape}")
+        # print(f"lstm_out_1 shape {lstm_out_1.shape}")
+        # lstm_out = lstm_out.permute(0, 2, 1)
+        # output = self.CONV(lstm_out)
+        # print(f"output shape {output.shape}")
+        output = []
         output = lstm_out_1.reshape(len(input_seq), -1)
         output = self.linear(output)
         output = self.sig(output)
@@ -50,6 +61,8 @@ class LSTM(nn.Module):
 
         # Global Max pooling
 
+        # output = self.sig(output)
+        # print(f"lstm_out2 shape {lstm_out.shape}")
 
         return output
 

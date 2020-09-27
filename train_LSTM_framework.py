@@ -37,7 +37,7 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 model = LSTM()
 model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-criterion = torch.nn.BCELoss().to(device)
+criterion = torch.nn.CrossEntropyLoss().to(device)
 
 ##########################################################
 # %% Artificial Data
@@ -63,7 +63,6 @@ loss_values, testing_acc = [], []
 
 model.train()
 # criterion = nn.BCELoss.to(device)
-
 for epoch in range(50):
     running_loss = 0
     correct = 0
@@ -91,7 +90,7 @@ for epoch in range(50):
         total += len(label_data)
 
         # Compute the loss
-        loss = Variable(criterion(out, label_data), requires_grad=True)
+        loss = Variable(criterion(out, label_data.long()), requires_grad=True)
         # F.nll_loss(out, label_data)
         # Calculate gradients.
         loss.backward()
