@@ -1,9 +1,10 @@
 import torch
+import math
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from models.layers import FactorizedConvolution
-
+from torch.nn.init import xavier_normal_
 
 class SpatialTemporalCNN(nn.Module):
     """
@@ -19,8 +20,27 @@ class SpatialTemporalCNN(nn.Module):
         self.l5 = FactorizedConvolution(64, 64, 16)
         # self.l6 = FactorizedConvolution(64,128,32)
         # self.l7 = FactorizedConvolution(128,128,32)
-        self.final_layer = nn.Linear(64, output_dim)
+        self.final_layer = nn.Sequential(
+            nn.BatchNorm1d(64),
+            nn.Linear(64, output_dim)
+        )
         self.maxpool = nn.MaxPool2d(2, 2)
+
+        # xavier initialization
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+                xavier_normal_(m.weight,
+                               gain=math.sqrt(2. / (1 + 0.01)))  # Gain adapted for LeakyReLU activation function
+                m.bias.data.fill_(0.01)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                xavier_normal_(m.weight,
+                               gain=math.sqrt(2. / (1 + 0.01)))  # Gain adapted for LeakyReLU activation function
+                m.bias.data.fill_(0.01)
+
+
 
     def forward(self, x, return_avg=False):
         """

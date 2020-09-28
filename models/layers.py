@@ -115,6 +115,18 @@ class GraphConv(nn.Module):
 
         return self.activation(out_list), adj
 
+class Conv(nn.Module):
+    '''Downsampling block'''
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(Conv,self).__init__()
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
+            nn.BatchNorm2d(out_channels),
+            nn.LeakyReLU()
+        )
+    def forward(self, x):
+        return self.conv(x)
 
 class FactorizedConvolution(nn.Module):
     """
@@ -124,14 +136,10 @@ class FactorizedConvolution(nn.Module):
 
     def __init__(self, input_dim=1, output_dim=1, channel_dim=32, bottle_neck=True):
         super(FactorizedConvolution, self).__init__()
-        layers = [nn.Conv2d(input_dim, channel_dim, 1, 1),  # 1*1*1*1
-                  nn.ReLU(),
-                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-                  # padding = (0, 1) to remain original shape
-                  nn.ReLU(),
-                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-                  nn.ReLU(),
-                  nn.Conv2d(channel_dim, output_dim, 1, 1)
+        layers = [Conv(input_dim, channel_dim, 1, 1),
+                  Conv(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                  Conv(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+                  Conv(channel_dim, output_dim, 1, stride=1)
                   ]
         if bottle_neck == False:
             layers = [nn.Conv2d(input_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
@@ -144,18 +152,11 @@ class FactorizedConvolution(nn.Module):
         self.input_dim = input_dim
         self.output_dim = output_dim
 
-        ### weight initialisation
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                xavier_normal_(m.weight,
-                               gain=math.sqrt(2. / (1 + 0.01)))  # Gain adapted for LeakyReLU activation function
-                m.bias.data.fill_(0.01)
-
     def forward(self, x):
         hidden = self.layers(x)
         if self.input_dim != self.output_dim:
             x = self.identity_match_layer(x)
-        x = self.relu(x + hidden)  # residual
+        x = self.relu(x + hidden)  # residual skip connection
         return x
 
 

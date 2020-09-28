@@ -5,9 +5,12 @@ import scipy.sparse as sp
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import networkx as nx
+import os
 import bct
 import torch
 from nilearn.connectome import ConnectivityMeasure
+from sklearn.cluster import KMeans
+
 
 def checkNone(matrix_list):
     '''
@@ -20,6 +23,7 @@ def checkNone(matrix_list):
     '''
 
     return np.argwhere(np.isnan(ROI_signals))
+
 
 def threshold(correlation_matrices, threshold=1):
     '''
@@ -119,6 +123,7 @@ def signal_to_connectivities(signals, kind='correlation', discard_diagonal=True,
     Params :
     --------
         - signals (np.array {um_subject, time_frame, num_ROI}) : the ROI signals
+        - kind : “correlation”, “partial correlation”, “tangent”, “covariance”, “precision”
     Returns :
     --------
         - (np.ndarray {num_subjects, ROI, ROI}) : functional connectivity matrix
@@ -173,6 +178,7 @@ def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=Fal
         print(classes_count)
 
     return subjects_list, label_list, classes_idx
+
 
 ### not used rn
 def sample_mask(idx, l):
@@ -244,7 +250,7 @@ def sym_normalize_adj(connectivity_matrices):
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
@@ -332,6 +338,21 @@ def augment_with_window(window_size, subjects_list, label_list, stride_size=1):
 # np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL_label.npy".format(stride), new_label_slices) #15488
 # print("check if works np.load('/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL.npy', allow_pickle=True)".format(stride))
 
+def adaptive_interpolation_frames(subjects_list, w=32, oneside_window_size=0, stride_size=10, func="MAX", start_index=0):
+    new_subjects_list = subjects_list[:, start_index::stride_size, :]
+    for s in range(len(subjects_list)):
+        for i in range(oneside_window_size, stride_size, 140 - oneside_window_size):
+            val = subjects_list[s, (i - oneside_window_size):(i + oneside_window_size + 1), :]
+        if oneside_window_size < 1:
+            new_val = val
+        if func == "MAX":
+            new_val = np.max(val, axis=0)  # (116,)
+        if func == "MIN":
+            new_val = np.min(val, axis=0)
+        if func == "MEAN":
+            new_val = np.mean(val, axis=0)
+        new_subjects_list[s, i, :] = new_val  # after taking min/max/mean inside window
+    return new_subjects_list
 
 def interpolation_frames(oneside_window_size, subjects_list, stride_size, func, start_index):
     '''
@@ -360,12 +381,13 @@ def interpolation_frames(oneside_window_size, subjects_list, stride_size, func, 
     return new_subjects_list
 
 
-def augment_with_selection(oneside_window_size, subjects_list, label_list, stride_size, func):
+def augment_with_selection(oneside_window_size, subjects_list, label_list, stride_size=10, mask='AAL', func='MEAN',
+                           save='', verbose=False):
     '''
     New methods, interpolation, which could cover along the time with a smaller size by
     select every stride_size number of frames, and do a function over the window frames
     to capture more features.
-    :param oneside_window_size: 1/2 window actually, e.g. actual_window = 3, then window = 1, actual_window = 5, then window = 2
+    :param oneside_window_size: 1/2 window actually, e.g. actual_window = 3, then window = 1, actual_window = 5, then window = 2, window=0, just extract the frame
     :param subjects_list: np.load('/content/drive/My Drive/data/ADNI_denoised/179_AAL.npy', allow_pickle=True)
     :param label_list: np.load('/content/drive/My Drive/data/ADNI/128_AAL_label.npy', allow_pickle=True)
     :param stride_size: skip number of frames
@@ -379,8 +401,16 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
                                       interpolation_frames(oneside_window_size, subjects_list, stride_size, func, j),
                                       axis=0)
         new_label_list = np.append(new_label_list, label_list)
-        print(new_subjects_list.shape)
-        print(new_label_list.shape)
+        if verbose:
+            print(new_subjects_list.shape)
+            print(new_label_list.shape)
+
+    if save:
+        save_path = save + "{}_{}_{}_{}_{}".format(len(new_subjects_list), stride_size, func, oneside_window_size,
+                                                         mask)
+        np.save(save_path, new_subjects_list)
+        np.save(save_path + "_label", new_label_list)
+
     return new_subjects_list, new_label_list
 
 
@@ -395,13 +425,24 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
 # print("saved")
 # #116 2710 14
 
-
 if __name__ == "__main__":
-    # LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(dataset='273_MSDL')
+    ### LOAD data
+    ROI_signals, labels, labels_idex = load_fmri_data(dataset='175_Havard_Oxford')
+    # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
+
+    ### generate augmented data using sliding window and save
+    mask = "Havard_Oxford"
+    save = ''# f'../data/interpolation/{mask}/'
+    # if not os.path.isdir(save):
+    #     os.mkdir(save)
+    for func in ['MAX', 'MEAN']:
+        for oneside_window_size in range(0, 2):
+            augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
+                                   save=save)
+
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
-    # convert to functional connectivity
-    connectivities = signal_to_connectivities(ROI_signals, kind='correlation', vectorize=True)
+    ### convert to functional connectivity
+    # connectivities = signal_to_connectivities(ROI_signals, kind='correlation', vectorize=False)
     # connectivities, _ = threshold(connectivities[:2])
     #
     # # inital node embeddings

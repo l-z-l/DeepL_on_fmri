@@ -33,12 +33,12 @@ from utils.helper import masked_loss, masked_acc
 # %% Load Data
 ##########################################################
 # LOAD data
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='273_Havard_Oxford')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/interpolation/Havard_Oxford', dataset='2730_10_MEAN_1_Havard_Oxford')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 
-labels = [x if (x == "CN") else "CD" for x in labels]
-classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
+# labels = [x if (x == "CN") else "CD" for x in labels]
+# classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 
 model = LinearSVC()
