@@ -6,6 +6,7 @@ import pandas as pd
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import networkx as nx
+import os
 import bct
 import torch
 from nilearn.connectome import ConnectivityMeasure
@@ -449,22 +450,36 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
             ret.append(np.mean(selected, axis=0))
         clustered_roi_signals.append(ret)
     return np.array(clustered_roi_signals) #271*20*140
-
+### Example usage
+# device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
+# print("Available computing device: ", device)
+# ROI_signals, labels, labels_index = load_fmri_data(dataDir='/content/drive/My Drive/data/ADNI_denoised/', dataset='271_AAL')
+# labels = [x if (x == "CN") else "CD" for x in labels]
+# classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
+# print(ROI_signals.shape)
+# print(labels_index)
+# # AAL atlases
+# atlas = datasets.fetch_atlas_aal()
+# # Loading atlas image stored in 'maps'
+# atlas_filename = atlas['maps']  # shape (91, 109, 91)
+# # Loading atlas data stored in 'labels'
+# atlas_labels = atlas['labels']
+# print(cluster_based_on_correlation(ROI_signals, atlas_labels, 20))
 
 if __name__ == "__main__":
     ### LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(dataset='175_Havard_Oxford')
+    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL')
     # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
 
     ### generate augmented data using sliding window and save
-    mask = "Havard_Oxford"
-    save = ''# f'../data/interpolation/{mask}/'
-    # if not os.path.isdir(save):
+    # mask = "Havard_Oxford"
+    # save = ''# f'../data/interpolation/{mask}/'
+    # if save and not os.path.isdir(save):
     #     os.mkdir(save)
-    for func in ['MAX', 'MEAN']:
-        for oneside_window_size in range(0, 2):
-            augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
-                                   save=save)
+    # for func in ['MAX', 'MEAN']:
+    #     for oneside_window_size in range(0, 2):
+    #         augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
+    #                                save=save)
 
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     ### convert to functional connectivity
@@ -477,3 +492,6 @@ if __name__ == "__main__":
     # # initial edge embeddings
     # W_0 = torch.as_tensor(connectivities)  # TODO: implement edge_embed() function
     # sparse_adj_list = sym_normalize_adj(connectivities)
+
+    ###
+    new = cluster_based_on_correlation(ROI_signals, labels, 20)

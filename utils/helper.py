@@ -18,7 +18,7 @@ def train_vec_loader(batch_size, input, target, mode='train'):
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.2, random_state=random.randrange(100))
+    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.2, random_state=0) #random.randrange(100))
 
     # print("train shape {} & {}".format(len(train_data), train_label.shape))
     # print("test shape {} & {}".format(len(test_data), test_label.shape))

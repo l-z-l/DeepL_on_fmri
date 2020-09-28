@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data/ADHD', dataset='ADHD')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='tangent', discard_diagonal=True, vectorize=True)
 X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
@@ -35,11 +35,11 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
-
-optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=args.weight_decay)
+optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 loss = torch.nn.BCELoss().to(device)
 
 loss_values, testing_acc = [], []
+
 def test(X_test, y_test):
     # Test
     model.eval()
@@ -73,49 +73,57 @@ testing_loss = []
 testing_acc = []
 
 test_size = int(X.shape[0] * 0.15)
-for epoch in range(2000):
+for epoch in range(10000):
     model.train()
-    ### allow train
-    model.zero_grad()
+    optimizer.zero_grad()
 
-    # Moniter value to plot
     running_loss = 0.0
     total_acc = 0
 
     # random permutate data
-    idx_batch = np.random.permutation(int(X.shape[0]))
+    idx_batch = np.random.permutation(int(X.shape[0])) # np.array(range(0, X.shape[0]))#
     idx_batch_test = idx_batch[:int(test_size)]
     idx_batch_train = idx_batch[-int(len(X) - test_size):]
     # batch
-    train_label_batch = label[idx_batch_train]
-    train_data_batch = Variable(X[idx_batch_train], requires_grad=True).to(device)
-    test_label_batch = label[idx_batch_test]
-    test_data_batch = Variable(X[idx_batch_test], requires_grad=True).to(device)
-
-
+    train_label_batch = label[idx_batch_train].to(device)
+    train_data_batch = X[idx_batch_train].to(device)
+    test_label_batch = label[idx_batch_test].to(device)
+    test_data_batch = X[idx_batch_test].to(device)
 
     # train
     pred_probs = model(train_data_batch)
-    out = torch.squeeze(pred_probs.detach().cpu())
-    y_pred = out > 0.5
-
-    # evaluate and learn
-    loss_val =Variable(loss(out, train_label_batch), requires_grad=True)
-
+    y_pred = pred_probs > 0.5
+    loss_val = loss(pred_probs, train_label_batch)
     loss_val.backward()
     optimizer.step()
+
     # running_loss =+ loss.item() * images.size(0)
     loss_values.append(loss_val / len(train_data_batch))
 
-    acc = accuracy_score(train_label_batch, y_pred)
+    acc = accuracy_score(train_label_batch.cpu(), y_pred.cpu())
     acc_values.append(acc)
-    # test value updates
-    temp_acc, temp_loss = test(test_data_batch, test_label_batch)
-    total_acc += temp_acc
-    testing_loss.append(temp_loss)
-    testing_acc.append(temp_acc)
+    ### test value updates
+    # temp_acc, temp_loss = test(test_data_batch, test_label_batch)
+    # total_acc += temp_acc
+    # testing_loss.append(temp_loss)
+    # testing_acc.append(temp_acc)
+
+    if epoch % 100 == 0:
+        print("-" * 80)
+        print("Testing Epoch: {}".format(epoch))
+        model.eval()
+        with torch.no_grad():
+            pred_prob_test = model(test_data_batch)
+            y_pred_test = pred_prob_test > 0.5
+            loss_val_test = loss(pred_prob_test, test_label_batch)
+            acc_test = accuracy_score(test_label_batch.cpu(), y_pred_test.cpu())
+            print("Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val_test, acc_test))
+        model.train()
+        print("-" * 80)
+
     if epoch % 10 == 0:
-        print("Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
+        print("Training ---------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
+
 '''
 # testing
 net.eval()
