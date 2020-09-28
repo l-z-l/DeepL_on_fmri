@@ -32,7 +32,7 @@ connectivity_matrices, _ = threshold(connectivity_matrices)
 # H_0 = node_embed(connectivity_matrices, 'Havard_Oxford')
 # H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
 # torch.save(H_0, "./data/273_MSDL_node.pt")
-# H_0 = torch.load(f"./data/{dataset}_node.pt")
+H_0 = torch.load(f"./data/{dataset}_node.pt")
 H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 20))
 
 sparse_adj_list = sym_normalize_adj(connectivity_matrices)
@@ -45,75 +45,83 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 # %% initialise mode and
 ##########################################################
 print("--------> Using ", device)
-net = GCN(H_0.shape[2], 2, node_num=H_0.shape[1])
-net.to(device)
+model = GCN(H_0.shape[2], 2, node_num=H_0.shape[1])
+model.to(device)
 
-optimizer = optim.Adam(net.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 criterion = torch.nn.NLLLoss().to(device)
 
-loss_values, testing_acc = [], []
+train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(1000):
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
 
-net.train()
-for epoch in range(50):
-    running_loss = 0
-    correct = 0
-    total = 0
+    ### train ###
     for batch_id, data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
+        model.train()
         # Preparing Data
         input_data, label_data, feat_data = data
-        input_data = input_data.to(device)
-        feat_data = feat_data.to(device)
+        input_data, label_data, feat_data = input_data.to(device), label_data.to(device), feat_data.to(device)
         # Feedforward
         optimizer.zero_grad()
 
-        predict = net((feat_data, input_data))
-
-        out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-        pred = out.max(dim=1)[1]
-        correct += pred.eq(label_data).sum().item()
-
-        total += len(label_data)
-
+        predict = model((feat_data, input_data))
         # Compute the loss
-        loss = Variable(criterion(out, label_data.long()), requires_grad=True)
-        # F.nll_loss(out, label_data)
-        # Calculate gradients.
+        loss = criterion(predict, label_data.long())
         loss.backward()
-        # Minimise the loss according to the gradient.
         optimizer.step()
 
-        running_loss += loss.item()
-
-        # print(correct, total)
-        # if batch_id % 32 == 31:
-    # print("Epoch: %2d, Loss: %.3f Accuracy: %.3f"
-    #       % (epoch, running_loss / total, correct, total))
-    loss_values.append(loss.item())
-    testing_acc.append(int(correct)/total * 100)
-    print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, toal: {total}, Accuracy: {int(correct)/total * 100}")
-
-# testing
-net.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for batch in train_loader(mode='test', input=sparse_adj_list, target=label, feature=H_0)():
-        input_data, label_data, feat_data = batch
-        input_data = input_data.to(device)
-        feat_data = feat_data.to(device)
-        # Get a batch and potentially send it to GPU memory.
-        predict = net((feat_data, input_data))
-
-        out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-
-        pred = out.max(dim=1)[1]
+        ### calculate loss
+        pred = predict.max(dim=-1)[-1]
         correct += pred.eq(label_data).sum().item()
         total += len(label_data)
-    print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
+
+        train_loss += loss.item()
+
+    ### test ###
+    model.eval()
+    with torch.no_grad():
+        for val_batch_id, val_data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
+            val_x, val_y, val_feat = val_data
+            val_x, val_y, val_feat = val_x.to(device), val_y.to(device), val_feat.to(device)
+
+            val_predict = model((val_feat, val_x))
+            val_pred = val_predict.max(dim=-1)[-1]
+            val_correct += val_pred.eq(val_y).sum().item()
+
+            val_total += len(val_y)
+            val_loss += criterion(predict, label_data.long()).item()
+
+    val_loss_list.append(val_loss)
+    train_loss_list.append(train_loss)
+    training_acc.append(int(correct)/total * 100)
+    testing_acc.append(int(val_correct)/val_total * 100)
+
+    if epoch % 10 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss}, Accuracy: {training_acc[-1]}")
+        print(f"Test loss: {val_loss}, Accuracy: {testing_acc[-1]}")
+        # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
+
+# # testing
+# model.eval()
+# with torch.no_grad():
+#     correct = 0
+#     total = 0
+#     for batch in train_loader(mode='test', input=sparse_adj_list, target=label, feature=H_0)():
+#         input_data, label_data, feat_data = batch
+#         input_data = input_data.to(device)
+#         feat_data = feat_data.to(device)
+#         # Get a batch and potentially send it to GPU memory.
+#         predict = model((feat_data, input_data))
+#
+#         out = torch.squeeze(predict.detach().cpu())
+#         # pred = out > 0.5
+#         # correct += (pred == label_data).sum()
+#
+#         pred = out.max(dim=1)[1]
+#         correct += pred.eq(label_data).sum().item()
+#         total += len(label_data)
+#     print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
 
 #########################################################
 # %% Plot result

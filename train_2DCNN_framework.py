@@ -34,56 +34,66 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 model = SpatialTemporalCNN()
 model.to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-
-loss_values, testing_acc = [], []
-
-model.train()
+optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
-loss_values, testing_acc = [], []
-
-
+train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
 for epoch in range(1000):
-    running_loss = 0
-    correct = 0
-    total = 0
-    for batch_id, data in enumerate(train_vec_loader(batch_size=X.shape[0], mode='train', input=X, target=label)()):
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
+
+    ### train ###
+    for batch_id, data in enumerate(train_vec_loader(batch_size=128, mode='train', input=X, target=label)()):
         model.train()
         # Preparing Data
         input_data, label_data = data
         input_data = input_data.to(device)
+        label_data = label_data.to(device)
         # Feedforward
         optimizer.zero_grad()
 
         predict = model(input_data)
 
-        out = torch.squeeze(predict.detach().cpu())
+        # out = torch.squeeze(predict.detach().cpu())
         # pred = out > 0.5
         # correct += (pred == label_data).sum()
-        pred = out.max(dim=-1)[-1]
+        ### using NLL or CrossEntropyLoss
+        pred = predict.max(dim=-1)[-1]
         correct += pred.eq(label_data).sum().item()
 
         total += len(label_data)
 
         # Compute the loss
-        loss = Variable(criterion(out, label_data.long()), requires_grad=True)
-        # F.nll_loss(out, label_data)
-        # Calculate gradients.
+        loss = criterion(predict, label_data.long())
+
         loss.backward()
-        # Minimise the loss according to the gradient.
         optimizer.step()
+        train_loss += loss.item()
 
-        running_loss += loss.item()
-        # print(correct, total)
-        # if batch_id % 32 == 31:
-    # print("Epoch: %2d, Loss: %.3f Accuracy: %.3f"
-    #       % (epoch, running_loss / total, correct, total))
+    ### test ###
+    model.eval()
+    with torch.no_grad():
+        for val_batch_id, val_data in enumerate(train_vec_loader(batch_size=128, mode='test', input=X, target=label)()):
+            val_x, val_y = val_data
+            val_x = val_x.to(device)
+            val_y = val_y.to(device)
 
-    loss_values.append(loss.item())
-    testing_acc.append(int(correct)/total * 100)
-    print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, toal: {total}, Accuracy: {int(correct)/total * 100}")
+            val_predict = model(val_x)
+            val_pred = val_predict.max(dim=-1)[-1]
+            val_correct += val_pred.eq(val_y).sum().item()
 
+            val_total += len(val_y)
+            val_loss += criterion(val_predict, val_y.long()).item()
+
+    val_loss_list.append(val_loss)
+    train_loss_list.append(train_loss)
+    training_acc.append(int(correct)/total * 100)
+    testing_acc.append(int(val_correct)/val_total * 100)
+
+    if epoch % 50 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss}, Accuracy: {training_acc[-1]}")
+        print(f"Test loss: {val_loss}, Accuracy: {testing_acc[-1]}")
+        # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 '''
 # testing
 model.eval()
@@ -110,7 +120,7 @@ with torch.no_grad():
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label="Training Loss function")
+plt.plot(np.array(train_loss_list), label="Training Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
@@ -118,10 +128,10 @@ plt.legend()
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.plot(np.array(training_acc), label="Accuracy function")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
-plt.savefig('accuracy.png')
+# plt.savefig('accuracy.png')
 plt.show()
 ''''''

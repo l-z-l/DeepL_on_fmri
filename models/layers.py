@@ -123,7 +123,8 @@ class Conv(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU()
+            nn.Dropout(0.5),
+            nn.ReLU()
         )
     def forward(self, x):
         return self.conv(x)
@@ -136,10 +137,11 @@ class FactorizedConvolution(nn.Module):
 
     def __init__(self, input_dim=1, output_dim=1, channel_dim=32, bottle_neck=True):
         super(FactorizedConvolution, self).__init__()
-        layers = [Conv(input_dim, channel_dim, 1, 1),
-                  Conv(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
-                  Conv(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-                  Conv(channel_dim, output_dim, 1, stride=1)
+        layers = [nn.Conv2d(input_dim, channel_dim, 1, 1),
+                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                  # nn.BatchNorm2d(channel_dim),
+                  nn.Conv2d(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+                  nn.Conv2d(channel_dim, output_dim, 1, stride=1)
                   ]
         if bottle_neck == False:
             layers = [nn.Conv2d(input_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
