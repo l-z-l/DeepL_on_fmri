@@ -73,7 +73,7 @@ testing_loss = []
 testing_acc = []
 
 test_size = int(X.shape[0] * 0.15)
-for epoch in range(10000):
+for epoch in range(5000):
     model.train()
     optimizer.zero_grad()
 
@@ -81,7 +81,7 @@ for epoch in range(10000):
     total_acc = 0
 
     # random permutate data
-    idx_batch = np.random.permutation(int(X.shape[0])) # np.array(range(0, X.shape[0]))#
+    idx_batch = np.array(range(0, X.shape[0])) # np.random.permutation(int(X.shape[0])) #
     idx_batch_test = idx_batch[:int(test_size)]
     idx_batch_train = idx_batch[-int(len(X) - test_size):]
     # batch
@@ -122,7 +122,7 @@ for epoch in range(10000):
         print("-" * 80)
 
     if epoch % 10 == 0:
-        print("Training ---------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
+        print("Testing --------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
 
 '''
 # testing

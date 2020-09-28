@@ -3,7 +3,7 @@ import argparse
 args = argparse.ArgumentParser()
 args.add_argument('--dataset', default='cora')
 args.add_argument('--model', default='gcn')
-args.add_argument('--learning_rate', type=float, default=1e-2)
+args.add_argument('--learning_rate', type=float, default=0.001)
 args.add_argument('--epochs', type=int, default=10)
 args.add_argument('--hidden', type=int, default=16)
 args.add_argument('--dropout', type=float, default=0.5)
