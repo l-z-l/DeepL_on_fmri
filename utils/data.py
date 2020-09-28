@@ -2,14 +2,15 @@ import numpy as np
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
+import pandas as pd
 from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import networkx as nx
-import os
 import bct
 import torch
 from nilearn.connectome import ConnectivityMeasure
-from sklearn.cluster import KMeans
+from scipy.cluster.hierarchy import linkage, fcluster
+from scipy.spatial.distance import squareform
 
 
 def checkNone(matrix_list):
@@ -250,7 +251,7 @@ def sym_normalize_adj(connectivity_matrices):
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
@@ -338,21 +339,6 @@ def augment_with_window(window_size, subjects_list, label_list, stride_size=1):
 # np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL_label.npy".format(stride), new_label_slices) #15488
 # print("check if works np.load('/content/drive/My Drive/Colab Notebooks/data/data_augument/271_100_{}_sliced_AAL.npy', allow_pickle=True)".format(stride))
 
-def adaptive_interpolation_frames(subjects_list, w=32, oneside_window_size=0, stride_size=10, func="MAX", start_index=0):
-    new_subjects_list = subjects_list[:, start_index::stride_size, :]
-    for s in range(len(subjects_list)):
-        for i in range(oneside_window_size, stride_size, 140 - oneside_window_size):
-            val = subjects_list[s, (i - oneside_window_size):(i + oneside_window_size + 1), :]
-        if oneside_window_size < 1:
-            new_val = val
-        if func == "MAX":
-            new_val = np.max(val, axis=0)  # (116,)
-        if func == "MIN":
-            new_val = np.min(val, axis=0)
-        if func == "MEAN":
-            new_val = np.mean(val, axis=0)
-        new_subjects_list[s, i, :] = new_val  # after taking min/max/mean inside window
-    return new_subjects_list
 
 def interpolation_frames(oneside_window_size, subjects_list, stride_size, func, start_index):
     '''
@@ -424,6 +410,46 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
 # np.save("/content/drive/My Drive/Colab Notebooks/data/data_augument/271_every_{}_{}_sliced_AAL_label.npy".format(stride, func_name), new_label_slices)
 # print("saved")
 # #116 2710 14
+
+def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
+    '''
+    For a subject's N ROIs, we can have a N*N correlation matrix.
+    Using this correlation matrix, we cluster that N items in M bins,
+    so that we can say those items in one bins behaves similar.
+    we aims to group rois for each subject to reduce the dimension.
+    :param ROI_signals: taken from load_fmri_data
+    :param mask_length: e.g. atlas_labels = atlas['labels']
+    :return: a N_subjects*defined_N_clusters*N_timepoints
+    '''
+    connectivity_measure_func = ConnectivityMeasure(kind='correlation')
+    connectivities_list = connectivity_measure_func.fit_transform(ROI_signals)
+    clustered_roi_signals = []
+    for i in range(len(connectivities_list)):
+        corr = connectivities_list[i]
+        # in case not regular correlation, made it symmetric
+        corr = (corr + corr.T) / 2
+        np.fill_diagonal(corr, 1)
+        # to make sure both positive and negative information can be recorded
+        dissimilarity = 1 - np.abs(corr)
+        # use hierarchical/agglomerative clustering linkage
+        hierarchy = linkage(squareform(dissimilarity), method='average')
+        # labels are which clusters they have been assigned
+        cluster_labels = fcluster(hierarchy, n_clusters, criterion='maxclust')
+        # print(len(np.unique(cluster_labels)))
+
+        cols = {"labels": cluster_labels, "rois": list(range(0, len(mask_label)))}
+        df = pd.DataFrame(cols)
+        # {1:[2,3],...} means cluster 1 is formed by ROI 2 and 3
+        # or we can change list(range(0, len(mask_label)) to mask_labels it will print names of clusters
+        result_cluster = df.groupby('labels')['rois'].apply(list).to_dict()
+        ret = []
+        for k in result_cluster.keys():
+            roi_index_list = result_cluster[k]
+            selected = ROI_signals[i, :, roi_index_list]
+            ret.append(np.mean(selected, axis=0))
+        clustered_roi_signals.append(ret)
+    return np.array(clustered_roi_signals) #271*20*140
+
 
 if __name__ == "__main__":
     ### LOAD data
