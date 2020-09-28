@@ -35,118 +35,109 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
-
+# optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=args.weight_decay)
-loss = torch.nn.BCELoss().to(device)
+
+# loss = torch.nn.BCELoss().to(device)
+
+criterion = torch.nn.BCELoss().to(device)
 
 loss_values, testing_acc = [], []
 
-model.train()
-
-def test(X_test, y_test):
-    # Test
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for data, target in zip(X_test, y_test):
-            pred_probs = model(data)
-            pred_probs = torch.squeeze(pred_probs.detach().cpu())
-            # sum up batch loss
-            test_loss = loss(pred_probs, torch.tensor([target]))
-            # print(f"O:{output.view(1)} T:{target}")
-            pred = pred_probs > 0.5
-            correct += (pred == target).sum()
-
-    test_loss /= len(X_test)
-    acc = 100. * correct / len(X_test)
-    # print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-    #     test_loss, correct, len(X_test),
-    #     acc))
-    return acc/100, test_loss
-
-# # Spliting the data
-np.random.seed(42)
-
+##########################################################
+# %% Artificial Data
+##########################################################
+# positive_index = []
+# for index, num in enumerate(label):
+#     if num == 1:
+#         positive_index.append(index)
+# # Taking positive sample from X
+# # X_1 = X
+# print(positive_index)
+# for index, num in enumerate(X):
+#     if index in positive_index:
+#         # print(f"{index} {X[index]} {X[index].shape}")
+#         X[index] = X[index] + 10
+        # print(f"{index} {X[index]} {X[index].shape}")
 
 # no need to do batch, since dataset size is small (79)
 loss_values = []
 acc_values = []
+
+
 testing_loss = []
 testing_acc = []
 
-split_size = int(X.shape[0] * 0.8)
-model.train()
+# input_1 = []
 for epoch in range(100):
-    # Moniter value to plot
-    running_loss = 0.0
-    total_acc = 0
-
-    # random permutate data
-    idx_batch = np.random.permutation(int(X.shape[0]))
-    idx_batch_test = idx_batch[:int(split_size)]
-    idx_batch_train = idx_batch[-int(len(X) - split_size):]
-    # batch
-    train_label_batch = label[idx_batch_train]
-    train_data_batch = Variable(X[idx_batch_train], requires_grad=True).to(device)
-    test_label_batch = label[idx_batch_test]
-    test_data_batch = Variable(X[idx_batch_test], requires_grad=True).to(device)
-
-    ### allow train
-
-    # model.zero_grad()
-
-    # train
-    pred_probs = model(train_data_batch)
-    out = torch.squeeze(pred_probs.detach().cpu())
-    y_pred = out > 0.5
-
-    # evaluate and learn
-    loss_val = Variable(loss(out, train_label_batch), requires_grad=True)
-
-    optimizer.zero_grad()
-    loss_val.backward()
-    optimizer.step()
-    # running_loss =+ loss.item() * images.size(0)
-    loss_values.append(loss_val / len(train_data_batch))
-
-    acc = accuracy_score(train_label_batch, y_pred)
-    acc_values.append(acc)
-    # test value updates
-    temp_acc, temp_loss = test(test_data_batch, test_label_batch)
-    total_acc += temp_acc
-    testing_loss.append(temp_loss)
-    testing_acc.append(temp_acc)
-    if epoch % 5 == 0:
-        print("Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
-'''
-# testing
-net.eval()
-with torch.no_grad():
+    model.train()
+    running_loss = 0
     correct = 0
     total = 0
-    for batch in train_loader(mode='test', input=sparse_adj_list, feature=H_0, target=label)():
-        input_data, label_data, feat_data = batch
+    running_loss_test = 0
+    correct_test = 0
+    total_test = 0
+    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='train', input=X, target=label)()):
+        # Preparing Data
+        input_data, label_data = data
         input_data = input_data.to(device)
-        feat_data = feat_data.to(device)
-        # Get a batch and potentially send it to GPU memory.
-        predict = net((feat_data, input_data))
+        # Feedforward
+        # print()
+        optimizer.zero_grad()
 
-        out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
+        predict = model(input_data)
 
-        pred = out.max(dim=1)[1]
-        correct += pred.eq(label_data).sum().item()
+        # out = torch.squeeze(predict) #.detach().cpu())
+        ### BCE
+        pred = predict > 0.5
+        correct += (torch.squeeze(pred) == label_data).sum()
+
+        ### Cross Entropy
+        # pred = out.max(dim=-1)[-1]
+        # out = out.squeeze()
+        # correct += pred.eq(label_data).sum().item()
+
         total += len(label_data)
-    print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
 
+        # Compute the loss
+        loss = criterion(predict, label_data) #, requires_grad=True)
+        # loss = criterion(out, label_data.float())
+        # F.nll_loss(out, label_data)
+        # Calculate gradients.
+        loss.backward()
+        # Minimise the loss according to the gradient.
+        optimizer.step()
+
+        # running_loss = (loss / len(input_data))
+        running_loss += loss.item()
+
+    loss_values.append(loss.item())
+    testing_acc.append(int(correct)/total * 100)
+    print(f"Training ---- Epoch: {epoch: <10} Loss: {running_loss/total: ^10} correct: {correct: ^10} total: {total: ^10}"
+          f"Accuracy: {int(correct)/total * 100: >5}")
+    # print(f"Epoch: {epoch}, Loss: {running_loss}, Loss_1: {running_loss_1}")
+    model.eval()
+    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='test', input=X, target=label)()):
+        input_data, label_data = data
+        input_data = input_data.to(device)
+        with torch.no_grad():
+            predict = model(input_data)
+            ### BCE
+            pred = predict > 0.5
+            loss = criterion(predict, label_data)
+            running_loss_test += loss.item()
+            correct_test += (torch.squeeze(pred) == label_data).sum()
+            total_test += len(label_data)
+    testing_loss.append(running_loss_test/total_test)
+    acc_values.append(int(correct_test) / total_test * 100)
+    print(f"Testing ---- Epoch: {epoch: <10} Loss: {running_loss_test/total_test: ^10} correct: {correct_test: ^10} total: {total_test: ^10} Accuracy: {int(correct_test)/total_test * 100: >5}")
 
 #########################################################
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label = "Training Loss function")
+plt.plot(np.array(loss_values), label="Training Loss function")
+plt.plot(np.array(testing_loss), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
@@ -154,10 +145,10 @@ plt.savefig('loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.plot(np.array(acc_values), label="Training Accuracy function")
+plt.plot(np.array(testing_acc), label="Testing Accuracy function")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
 plt.savefig('accuracy.png')
 plt.show()
-'''
