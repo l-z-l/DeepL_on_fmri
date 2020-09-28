@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='interpolation/270_every_10_MAX_sliced_AAL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
 # convert to functional connectivity
 X = torch.as_tensor(ROIs, dtype=torch.float)
 X = torch.unsqueeze(X, 1).to(device) # add extra dimension (m, 1, time_seq, ROIS)
@@ -43,13 +43,13 @@ criterion = torch.nn.CrossEntropyLoss().to(device)
 
 loss_values, testing_acc = [], []
 
-model.train()
 
-for epoch in range(200):
+for epoch in range(1000):
     running_loss = 0
     correct = 0
     total = 0
-    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='train', input=X, target=label)()):
+    for batch_id, data in enumerate(train_vec_loader(batch_size=X.shape[0], mode='train', input=X, target=label)()):
+        model.train()
         # Preparing Data
         input_data, label_data = data
         input_data = input_data.to(device)
@@ -75,11 +75,11 @@ for epoch in range(200):
         optimizer.step()
 
         running_loss += loss.item()
-
         # print(correct, total)
         # if batch_id % 32 == 31:
     # print("Epoch: %2d, Loss: %.3f Accuracy: %.3f"
     #       % (epoch, running_loss / total, correct, total))
+
     loss_values.append(loss.item())
     testing_acc.append(int(correct)/total * 100)
     print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, toal: {total}, Accuracy: {int(correct)/total * 100}")
@@ -116,7 +116,7 @@ plt.title('Loss value')
 plt.legend()
 # plt.savefig('loss.png')
 plt.show()
-'''
+
 print('Finished Testing Trainset')
 plt.plot(np.array(testing_acc), label="Accuracy function")
 plt.xlabel('Number of epoches')
@@ -124,4 +124,4 @@ plt.title('Accuracy')
 plt.legend()
 plt.savefig('accuracy.png')
 plt.show()
-'''
+''''''

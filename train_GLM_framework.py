@@ -33,7 +33,7 @@ from utils.helper import masked_loss, masked_acc
 # %% Load Data
 ##########################################################
 # LOAD data
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='273_Havard_Oxford')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 
