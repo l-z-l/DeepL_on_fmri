@@ -25,16 +25,16 @@ class Linear(nn.Module):
 
         self.MLP = nn.Sequential(
             nn.Linear(input_dim, 2000),
-            # nn.Dropout(0.5),
+            nn.Dropout(0.5),
             nn.ReLU(),
             # nn.Linear(2000, 1000),
             # # nn.Dropout(0.5),
             # nn.ReLU(),
             nn.Linear(2000, 512),
-            # nn.Dropout(0.5),
+            nn.Dropout(0.5),
             nn.ReLU(),
             nn.Linear(512, 128),
-            # nn.Dropout(0.5),
+            nn.Dropout(0.5),
             nn.ReLU(),
             nn.Linear(128, output_dim)
         )

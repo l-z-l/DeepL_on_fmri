@@ -25,8 +25,8 @@ ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
 connectivity_matrices = signal_to_connectivities(ROIs, kind='tangent', discard_diagonal=True, vectorize=True)
 X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
 
-# labels = [x if (x == "CN") else "CD" for x in labels]
-# classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
+labels = [x if (x == "CN") else "CD" for x in labels]
+classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
 # %% initialise mode and
@@ -65,7 +65,6 @@ def test(X_test, y_test):
 # # Spliting the data
 np.random.seed(42)
 
-
 # no need to do batch, since dataset size is small (79)
 loss_values = []
 acc_values = []
@@ -73,7 +72,7 @@ testing_loss = []
 testing_acc = []
 
 test_size = int(X.shape[0] * 0.15)
-for epoch in range(5000):
+for epoch in range(15000):
     model.train()
     optimizer.zero_grad()
 
@@ -81,7 +80,7 @@ for epoch in range(5000):
     total_acc = 0
 
     # random permutate data
-    idx_batch = np.array(range(0, X.shape[0])) # np.random.permutation(int(X.shape[0])) #
+    idx_batch = np.random.permutation(int(X.shape[0])) # np.array(range(0, X.shape[0])) #
     idx_batch_test = idx_batch[:int(test_size)]
     idx_batch_train = idx_batch[-int(len(X) - test_size):]
     # batch
@@ -97,18 +96,11 @@ for epoch in range(5000):
     loss_val.backward()
     optimizer.step()
 
-    # running_loss =+ loss.item() * images.size(0)
     loss_values.append(loss_val / len(train_data_batch))
 
     acc = accuracy_score(train_label_batch.cpu(), y_pred.cpu())
-    acc_values.append(acc)
-    ### test value updates
-    # temp_acc, temp_loss = test(test_data_batch, test_label_batch)
-    # total_acc += temp_acc
-    # testing_loss.append(temp_loss)
-    # testing_acc.append(temp_acc)
-
     if epoch % 100 == 0:
+        print("Training --------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
         print("-" * 80)
         print("Testing Epoch: {}".format(epoch))
         model.eval()
@@ -118,11 +110,7 @@ for epoch in range(5000):
             loss_val_test = loss(pred_prob_test, test_label_batch)
             acc_test = accuracy_score(test_label_batch.cpu(), y_pred_test.cpu())
             print("Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val_test, acc_test))
-        model.train()
         print("-" * 80)
-
-    if epoch % 10 == 0:
-        print("Testing --------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
 
 '''
 # testing

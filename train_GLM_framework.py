@@ -37,8 +37,8 @@ ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 
-# labels = [x if (x == "CN") else "CD" for x in labels]
-# classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
+labels = [x if (x == "CN") else "CD" for x in labels]
+classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 
 model = LinearSVC()
