@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='273_MSDL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_100_5_sliced_AAL')
+# interpolation/Havard_Oxford
 # convert to functional connectivity
 # Only use with AAL
 # ROIs[:, :, :90]
@@ -34,94 +35,80 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
 # %% initialise mode and
 ##########################################################
-model = LSTM()
-model.to(device)
-optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-criterion = torch.nn.CrossEntropyLoss().to(device)
+model = LSTM(input_size=X.shape[2], hidden_dim=16, seq_len=X.shape[1], num_layers=1, output_size=2).to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
+criterion = nn.CrossEntropyLoss().to(device)
 
-##########################################################
-# %% Artificial Data
-##########################################################
-positive_index = []
-for index, num in enumerate(label):
-    if num == 1:
-        positive_index.append(index)
-# Taking positive sample from X
-# X_1 = X
-print(positive_index)
-for index, num in enumerate(X):
-    if index in positive_index:
-        # print(f"{index} {X[index]} {X[index].shape}")
-        X[index] = X[index] + 15
-        # print(f"{index} {X[index]} {X[index].shape}")
-# print()
+train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(100):
+    model.train()
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
 
-
-
-
-loss_values, testing_acc = [], []
-
-model.train()
-# criterion = nn.BCELoss.to(device)
-for epoch in range(50):
-    running_loss = 0
-    correct = 0
-    total = 0
-    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='train', input=X, target=label)()):
+    ### train ###
+    for batch_id, data in enumerate(train_vec_loader(batch_size=64, mode='train', input=X, target=label)()):
         # Preparing Data
         input_data, label_data = data
-        # print()
-        input_data = input_data.to(device)
+        input_data, label_data = input_data.to(device), label_data.to(device)
         # Feedforward
         optimizer.zero_grad()
-
         predict = model(input_data)
-
-        out = torch.squeeze(predict.detach().cpu())
-        ### BCE
-        pred = out > 0.5
-        correct += (pred == label_data).sum()
-
-        ### Cross Entropy
-        # pred = out.max(dim=-1)[-1]
-        # out = out.squeeze()
-        # correct += pred.eq(label_data).sum().item()
-
-        total += len(label_data)
-
         # Compute the loss
-        loss = Variable(criterion(out, label_data.long()), requires_grad=True)
-        # F.nll_loss(out, label_data)
-        # Calculate gradients.
+        loss = criterion(predict, label_data.long())
         loss.backward()
-        # Minimise the loss according to the gradient.
         optimizer.step()
 
-        running_loss += loss.item()
+        # out = torch.squeeze(predict.detach().cpu())
+        # pred = out > 0.5
+        # correct += (pred == label_data).sum()
+        ### using NLL or CrossEntropyLoss
+        pred = predict.max(dim=-1)[-1]
+        correct += pred.eq(label_data).sum().item()
+        total += len(label_data)
+        train_loss += loss.item()
 
-        # print(correct, total)
-        # if batch_id % 32 == 31:
-    # print("Epoch: %2d, Loss: %.3f Accuracy: %.3f"
-    #       % (epoch, running_loss / total, correct, total))
-    loss_values.append(loss.item())
-    testing_acc.append(int(correct)/total * 100)
-    print(f"Epoch: {epoch}, Loss: {running_loss/total} correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
+    ### test ###
+    model.eval()
+    with torch.no_grad():
+        for val_batch_id, val_data in enumerate(train_vec_loader(batch_size=128, mode='test', input=X, target=label)()):
+            val_x, val_y = val_data
+            val_x = val_x.to(device)
+            val_y = val_y.to(device)
 
+            val_predict = model(val_x)
+            val_pred = val_predict.max(dim=-1)[-1]
+            val_correct += val_pred.eq(val_y).sum().item()
+
+            val_total += len(val_y)
+            val_loss += criterion(val_predict, val_y.long()).item()
+
+
+    train_loss_list.append(train_loss / total)
+    training_acc.append(int(correct) / total * 100)
+    val_loss_list.append(val_loss / val_total)
+    testing_acc.append(int(val_correct) / val_total * 100)
+
+    if epoch % 50 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+        # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 #########################################################
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label="Training Loss function")
+plt.plot(np.array(train_loss_list), label="Training Loss function")
+plt.plot(np.array(val_loss_list), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
-plt.savefig('loss_LSTM.png')
+plt.savefig('LSTM_loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.plot(np.array(training_acc), label="Train Accuracy")
+plt.plot(np.array(testing_acc), label="Test Accuracy")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
-plt.savefig('accuracy_LSTM.png')
+plt.savefig('LSTM_accuracy.png')
 plt.show()

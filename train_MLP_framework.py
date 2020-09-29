@@ -72,7 +72,7 @@ testing_loss = []
 testing_acc = []
 
 test_size = int(X.shape[0] * 0.15)
-for epoch in range(15000):
+for epoch in range(1500):
     model.train()
     optimizer.zero_grad()
 
@@ -139,7 +139,8 @@ with torch.no_grad():
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label = "Training Loss function")
+plt.plot(np.array(train_loss_list), label="Training Loss function")
+plt.plot(np.array(val_loss_list), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
@@ -147,10 +148,10 @@ plt.savefig('loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.plot(np.array(training_acc), label="Train Accuracy")
+plt.plot(np.array(testing_acc), label="Test Accuracy")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
 plt.savefig('accuracy.png')
 plt.show()
-

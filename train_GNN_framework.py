@@ -102,43 +102,23 @@ for epoch in range(1000):
         print(f"Test loss: {val_loss}, Accuracy: {testing_acc[-1]}")
         # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 
-# # testing
-# model.eval()
-# with torch.no_grad():
-#     correct = 0
-#     total = 0
-#     for batch in train_loader(mode='test', input=sparse_adj_list, target=label, feature=H_0)():
-#         input_data, label_data, feat_data = batch
-#         input_data = input_data.to(device)
-#         feat_data = feat_data.to(device)
-#         # Get a batch and potentially send it to GPU memory.
-#         predict = model((feat_data, input_data))
-#
-#         out = torch.squeeze(predict.detach().cpu())
-#         # pred = out > 0.5
-#         # correct += (pred == label_data).sum()
-#
-#         pred = out.max(dim=1)[1]
-#         correct += pred.eq(label_data).sum().item()
-#         total += len(label_data)
-#     print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
-
 #########################################################
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label = "Training Loss function")
+plt.plot(np.array(train_loss_list), label="Training Loss function")
+plt.plot(np.array(val_loss_list), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
-plt.savefig('loss.png')
+# plt.savefig('loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(testing_acc), label="Accuracy function")
+plt.plot(np.array(training_acc), label="Train Accuracy")
+plt.plot(np.array(testing_acc), label="Test Accuracy")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
-plt.savefig('accuracy.png')
+# plt.savefig('accuracy.png')
 plt.show()
-''''''

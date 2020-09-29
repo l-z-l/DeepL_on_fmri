@@ -33,7 +33,7 @@ from utils.helper import masked_loss, masked_acc
 # %% Load Data
 ##########################################################
 # LOAD data
-ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_Havard_Oxford')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 
@@ -45,20 +45,21 @@ model = LinearSVC()
 
 
 # print(labels_index)
-# cv = StratifiedShuffleSplit(n_splits=5, random_state=42, test_size=0.2)
-#
-# scores = []
-# print("Stratified Shuffle Split scores")
-# for train, test in cv.split(connectivity_matrices, labels_index):
-#     # *ConnectivityMeasure* can output the estimated subjects coefficients
-#     classifier = LinearSVC().fit(connectivity_matrices[train], labels_index[train])
-#     # make predictions for the left-out test subjects
-#     predictions = classifier.predict(connectivity_matrices[test])
-#     # store the accuracy for this cross-validation fold
-#     scores.append(accuracy_score(labels_index[test], predictions))
-#     print(scores[-1])
+cv = StratifiedShuffleSplit(n_splits=5, random_state=42, test_size=0.2)
 
-trainX, testX, trainY, testY = train_test_split(connectivity_matrices, labels_index, test_size=0.15)
-model = model.fit(trainX, trainY)
-predictions = model.predict(testX).round()
-print(accuracy_score(testY, predictions))
+scores = []
+print("Stratified Shuffle Split scores")
+for train, test in cv.split(connectivity_matrices, labels_index):
+    # *ConnectivityMeasure* can output the estimated subjects coefficients
+    classifier = LinearSVC().fit(connectivity_matrices[train], labels_index[train])
+    # make predictions for the left-out test subjects
+    predictions = classifier.predict(connectivity_matrices[test])
+    # store the accuracy for this cross-validation fold
+    scores.append(accuracy_score(labels_index[test], predictions))
+    # print(scores[-1])
+
+print(np.mean(scores))
+# trainX, testX, trainY, testY = train_test_split(connectivity_matrices, labels_index, test_size=0.15)
+# model = model.fit(trainX, trainY)
+# predictions = model.predict(testX).round()
+# print(accuracy_score(testY, predictions))

@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='273_Havard_Oxford')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
@@ -29,62 +29,30 @@ labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
-# %% initialise mode and
+# %% initialise model and loss func
 ##########################################################
 
 print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
 # optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
-optimizer = optim.Adam(model.parameters(), lr=0.01, weight_decay=args.weight_decay)
+optimizer = optim.Adam(model.parameters(), lr=0.00005, weight_decay=args.weight_decay)
 
-# loss = torch.nn.BCELoss().to(device)
-
+# criterion = torch.nn.BCELoss().to(device)
 criterion = torch.nn.BCELoss().to(device)
 
-loss_values, testing_acc = [], []
-
-##########################################################
-# %% Artificial Data
-##########################################################
-# positive_index = []
-# for index, num in enumerate(label):
-#     if num == 1:
-#         positive_index.append(index)
-# # Taking positive sample from X
-# # X_1 = X
-# print(positive_index)
-# for index, num in enumerate(X):
-#     if index in positive_index:
-#         # print(f"{index} {X[index]} {X[index].shape}")
-#         X[index] = X[index] + 10
-        # print(f"{index} {X[index]} {X[index].shape}")
-
-# no need to do batch, since dataset size is small (79)
-loss_values = []
-acc_values = []
-
-
-testing_loss = []
-testing_acc = []
-
-# input_1 = []
-for epoch in range(100):
+train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(500):
     model.train()
-    running_loss = 0
-    correct = 0
-    total = 0
-    running_loss_test = 0
-    correct_test = 0
-    total_test = 0
-    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='train', input=X, target=label)()):
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
+
+    for batch_id, data in enumerate(train_vec_loader(batch_size=128, mode='train', input=X, target=label)()):
         # Preparing Data
         input_data, label_data = data
-        input_data = input_data.to(device)
-        # Feedforward
-        # print()
-        optimizer.zero_grad()
+        input_data, label_data = input_data.to(device), label_data.to(device)
 
+        optimizer.zero_grad()
         predict = model(input_data)
 
         # out = torch.squeeze(predict) #.detach().cpu())
@@ -109,35 +77,38 @@ for epoch in range(100):
         optimizer.step()
 
         # running_loss = (loss / len(input_data))
-        running_loss += loss.item()
+        train_loss += loss.item()
+    train_loss_list.append(train_loss/total)
+    training_acc.append(int(correct)/total * 100)
 
-    loss_values.append(loss.item())
-    testing_acc.append(int(correct)/total * 100)
-    print(f"Training ---- Epoch: {epoch: <10} Loss: {running_loss/total: ^10} correct: {correct: ^10} total: {total: ^10}"
-          f"Accuracy: {int(correct)/total * 100: >5}")
-    # print(f"Epoch: {epoch}, Loss: {running_loss}, Loss_1: {running_loss_1}")
+    ### test
     model.eval()
-    for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='test', input=X, target=label)()):
-        input_data, label_data = data
-        input_data = input_data.to(device)
-        with torch.no_grad():
-            predict = model(input_data)
-            ### BCE
-            pred = predict > 0.5
-            loss = criterion(predict, label_data)
-            running_loss_test += loss.item()
-            correct_test += (torch.squeeze(pred) == label_data).sum()
-            total_test += len(label_data)
-    testing_loss.append(running_loss_test/total_test)
-    acc_values.append(int(correct_test) / total_test * 100)
-    print(f"Testing ---- Epoch: {epoch: <10} Loss: {running_loss_test/total_test: ^10} correct: {correct_test: ^10} total: {total_test: ^10} Accuracy: {int(correct_test)/total_test * 100: >5}")
+    with torch.no_grad():
+        for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='test', input=X, target=label)()):
+            val_x, val_y = data
+            val_x, val_y = val_x.to(device), val_y.to(device)
+
+            val_predict = model(val_x)
+            ### BCE Loss
+            pred = val_predict > 0.5
+            loss = criterion(val_predict, val_y)
+
+            val_loss += loss.item()
+            val_correct += (torch.squeeze(pred) == val_y).sum()
+            val_total += len(val_y)
+
+    val_loss_list.append(val_loss/val_total)
+    testing_acc.append(int(val_correct) / val_total * 100)
+    if epoch % 50 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
 
 #########################################################
 # %% Plot result
 #########################################################
 print('Finished Training Trainset')
-plt.plot(np.array(loss_values), label="Training Loss function")
-plt.plot(np.array(testing_loss), label="Testing Loss function")
+plt.plot(np.array(train_loss_list), label="Training Loss function")
+plt.plot(np.array(val_loss_list), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
@@ -145,8 +116,8 @@ plt.savefig('loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
-plt.plot(np.array(acc_values), label="Training Accuracy function")
-plt.plot(np.array(testing_acc), label="Testing Accuracy function")
+plt.plot(np.array(training_acc), label="Train Accuracy")
+plt.plot(np.array(testing_acc), label="Test Accuracy")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
