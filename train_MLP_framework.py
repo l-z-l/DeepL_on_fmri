@@ -8,7 +8,7 @@ import numpy as np
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import train_vec_loader, plot_train_result
+from utils.helper import train_vec_loader, plot_train_result, cross_validation_train_vec_loader, train_vec_loader_2
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -43,77 +43,93 @@ optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_d
 # criterion = torch.nn.BCELoss().to(device)
 criterion = torch.nn.BCELoss().to(device)
 
+
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
+        nn.init.zeros_(m.bias)
+
 train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(100):
-    model.train()
-    train_loss, correct, total = 0, 0, 0
-    val_loss, val_correct, val_total = 0, 0, 0
 
-    for batch_id, data in enumerate(train_vec_loader(batch_size=64, mode='train', input=X, target=label)()):
-        # Preparing Data
-        input_data, label_data = data
-        input_data, label_data = input_data.to(device), label_data.to(device)
+for train_index, test_index in cross_validation_train_vec_loader(X, 5, 40):
+    train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+    # print(train_index)
+    # print(test_index)
+    X_train = X[train_index]
+    X_test = X[test_index]
+    label_train = label[train_index]
+    label_test = label[test_index]
+    model.apply(weight_init)
+    for epoch in range(150):
+        model.train()
+        train_loss, correct, total = 0, 0, 0
+        val_loss, val_correct, val_total = 0, 0, 0
 
-        optimizer.zero_grad()
-        predict = model(input_data)
+        for batch_id, data in enumerate(train_vec_loader_2(batch_size=64, mode='train', input=X, target=label, train_index=train_index, test_index=test_index)()):
+            # Preparing Data
+            input_data, label_data = data
+            input_data, label_data = input_data.to(device), label_data.to(device)
 
-        # out = torch.squeeze(predict) #.detach().cpu())
-        ### BCE
-        pred = predict > 0.5
-        correct += (torch.squeeze(pred) == label_data).sum()
+            optimizer.zero_grad()
+            predict = model(input_data)
 
-        ### Cross Entropy
-        # pred = out.max(dim=-1)[-1]
-        # out = out.squeeze()
-        # correct += pred.eq(label_data).sum().item()
+            # out = torch.squeeze(predict) #.detach().cpu())
+            ### BCE
+            pred = predict > 0.5
+            correct += (torch.squeeze(pred) == label_data).sum()
 
-        total += len(label_data)
+            ### Cross Entropy
+            # pred = out.max(dim=-1)[-1]
+            # out = out.squeeze()
+            # correct += pred.eq(label_data).sum().item()
 
-        # Compute the loss
-        loss = criterion(predict.squeeze(), label_data) #, requires_grad=True)
-        # loss = criterion(out, label_data.float())
-        # F.nll_loss(out, label_data)
-        # Calculate gradients.
-        loss.backward()
-        # Minimise the loss according to the gradient.
-        optimizer.step()
+            total += len(label_data)
 
-        # running_loss = (loss / len(input_data))
-        train_loss += loss.item()
-    train_loss_list.append(train_loss/total)
-    training_acc.append(int(correct)/total * 100)
+            # Compute the loss
+            loss = criterion(predict.squeeze(), label_data) #, requires_grad=True)
+            # loss = criterion(out, label_data.float())
+            # F.nll_loss(out, label_data)
+            # Calculate gradients.
+            loss.backward()
+            # Minimise the loss according to the gradient.
+            optimizer.step()
 
-    ### test
-    model.eval()
-    with torch.no_grad():
-        for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='test', input=X, target=label)()):
-            val_x, val_y = data
-            val_x, val_y = val_x.to(device), val_y.to(device)
+            # running_loss = (loss / len(input_data))
+            train_loss += loss.item()
+        train_loss_list.append(train_loss/total)
+        training_acc.append(int(correct)/total * 100)
 
-            val_predict = model(val_x)
-            ### BCE Loss
-            pred = val_predict > 0.5
-            loss = criterion(val_predict.squeeze(), val_y)
+        ### test
+        model.eval()
+        with torch.no_grad():
+            for batch_id, data in enumerate(train_vec_loader_2(batch_size=50, mode='test', input=X, target=label, train_index=train_index, test_index=test_index)()):
+                val_x, val_y = data
+                val_x, val_y = val_x.to(device), val_y.to(device)
 
-            val_loss += loss.item()
-            val_correct += (torch.squeeze(pred) == val_y).sum()
-            val_total += len(val_y)
+                val_predict = model(val_x)
+                ### BCE Loss
+                pred = val_predict > 0.5
+                loss = criterion(val_predict.squeeze(), val_y)
 
-    val_loss_list.append(val_loss/val_total)
-    testing_acc.append(int(val_correct) / val_total * 100)
-    if epoch % 50 == 0:
-        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-        print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+                val_loss += loss.item()
+                val_correct += (torch.squeeze(pred) == val_y).sum()
+                val_total += len(val_y)
 
-history = {
-    "train_loss": train_loss_list,
-    "train_acc": training_acc,
-    "test_loss": val_loss_list,
-    "test_acc": testing_acc,
-}
-history = pd.DataFrame(history)
+        val_loss_list.append(val_loss/val_total)
+        testing_acc.append(int(val_correct) / val_total * 100)
+        if epoch % 50 == 0:
+            print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+            print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+
+# history = {
+#     "train_loss": train_loss_list,
+#     "train_acc": training_acc,
+#     "test_loss": val_loss_list,
+#     "test_acc": testing_acc,
+# }
+# history = pd.DataFrame(history)
 
 #########################################################
 # %% Plot result
 #########################################################
-plot_train_result(history, save_path=None)
+# plot_train_result(history, save_path=None)
