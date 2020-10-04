@@ -8,7 +8,7 @@ import numpy as np
 from utils.data import *
 from models.LSTM import LSTM
 from utils.config import args
-from utils.helper import train_vec_loader, train_loader
+from utils.helper import train_vec_loader, train_loader, plot_train_result
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -82,7 +82,6 @@ for epoch in range(100):
             val_total += len(val_y)
             val_loss += criterion(val_predict, val_y.long()).item()
 
-
     train_loss_list.append(train_loss / total)
     training_acc.append(int(correct) / total * 100)
     val_loss_list.append(val_loss / val_total)
@@ -93,23 +92,15 @@ for epoch in range(100):
         print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
         # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 
+history = {
+    "train_loss": train_loss_list,
+    "train_acc": training_acc,
+    "test_loss": val_loss_list,
+    "test_acc": testing_acc,
+}
+history = pd.DataFrame(history)
+
 #########################################################
 # %% Plot result
 #########################################################
-print('Finished Training Trainset')
-plt.plot(np.array(train_loss_list), label="Training Loss function")
-plt.plot(np.array(val_loss_list), label="Testing Loss function")
-plt.xlabel('Number of epoches')
-plt.title('Loss value')
-plt.legend()
-plt.savefig('LSTM_loss.png')
-plt.show()
-
-print('Finished Testing Trainset')
-plt.plot(np.array(training_acc), label="Train Accuracy")
-plt.plot(np.array(testing_acc), label="Test Accuracy")
-plt.xlabel('Number of epoches')
-plt.title('Accuracy')
-plt.legend()
-plt.savefig('LSTM_accuracy.png')
-plt.show()
+plot_train_result(history, save_path=None)

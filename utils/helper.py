@@ -2,6 +2,8 @@ import numpy as np
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 from torch.nn import functional as F
 import torch
 import bct
@@ -18,7 +20,7 @@ def train_vec_loader(batch_size, input, target, mode='train'):
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.15, random_state=42)
+    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.15, random_state=0)
 
     # print("train shape {} & {}".format(len(train_data), train_label.shape))
     # print("test shape {} & {}".format(len(test_data), test_label.shape))
@@ -63,7 +65,7 @@ def train_loader(mode, input, target, feature=None, batchsize=32):
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
     train_data, test_data, train_label, test_label, train_feat, test_feat = train_test_split(input, target, feature,
-                                                                                             test_size=0.05, random_state=random.randrange(100))
+                                                                                             test_size=0.15, random_state=0)
     # train_test_split(input, target, test_size=0.2)
 
     # print("train shape {} & {}".format(len(train_data), train_label.shape))
@@ -104,6 +106,48 @@ def train_loader(mode, input, target, feature=None, batchsize=32):
             yield list_2_tensor(subjects_list), list_2_tensor(labels_list), list_2_tensor(feat_list)
 
     return data_generator
+
+def plot_train_result(history, best_epoch=None, save_path=None):
+    """Display training and validation loss evolution over epochs
+    Params
+    -------
+    history :
+    best_epoch : int
+        If early stopping is used, display the last saved model
+    save_path : string
+        Path to save the figure
+
+    Return
+    --------
+    a matplotlib Figure
+    """
+    print("===========>>>>>>>>> PLOTING")
+
+    fig = plt.figure(figsize=(15, 20))
+    gs = GridSpec(2, 2, figure=fig)
+
+    ax1 = fig.add_subplot(gs[0, :])  # full top row: global VAE loss
+    ax2 = fig.add_subplot(gs[1, :])  # top row on 4x4 grid: reconstruction
+    #  plot the overall loss
+    ax1.set_title('Loss')
+    ax1.plot(history['train_loss'], color='dodgerblue', label='train')
+    ax1.plot(history['test_loss'], linestyle='--', color='lightsalmon', label='test')
+    if best_epoch:
+        ax1.axvline(best_epoch, linestyle='--', color='r', label='Early stopping')
+
+    ax2.set_title('Accuracy')
+    ax2.plot(history['train_acc'], color='dodgerblue', label='train')
+    ax2.plot(history['test_acc'], linestyle='--', color='lightsalmon', label='test')
+
+    ax1.legend()
+    ax2.legend()
+
+    if save_path:
+        plt.savefig(save_path + 'loss_eval.png')
+
+    plt.show()
+
+    return fig
 
 
 def masked_loss(out, label, mask):

@@ -8,7 +8,7 @@ import numpy as np
 from utils.data import *
 from models.CNN import SpatialTemporalCNN
 from utils.config import args
-from utils.helper import train_vec_loader, train_loader
+from utils.helper import train_vec_loader, train_loader, plot_train_result
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -91,45 +91,15 @@ for epoch in range(1000):
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
         # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
-'''
-# testing
-model.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for batch in train_vec_loader(mode='test', input=X, target=label)():
-        input_data, label_data, feat_data = batch
-        input_data = input_data.to(device)
-        feat_data = feat_data.to(device)
-        # Get a batch and potentially send it to GPU memory.
-        predict = model((feat_data, input_data))
+history = {
+    "train_loss": train_loss_list,
+    "train_acc": training_acc,
+    "test_loss": val_loss_list,
+    "test_acc": testing_acc,
+}
+history = pd.DataFrame(history)
 
-        out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-
-        pred = out.max(dim=1)[1]
-        correct += pred.eq(label_data).sum().item()
-        total += len(label_data)
-    print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
-'''
 #########################################################
 # %% Plot result
 #########################################################
-print('Finished Training Trainset')
-plt.plot(np.array(train_loss_list), label="Training Loss function")
-plt.plot(np.array(val_loss_list), label="Testing Loss function")
-plt.xlabel('Number of epoches')
-plt.title('Loss value')
-plt.legend()
-plt.savefig('2dCNN_loss.png')
-plt.show()
-
-print('Finished Testing Trainset')
-plt.plot(np.array(training_acc), label="Train Accuracy")
-plt.plot(np.array(testing_acc), label="Test Accuracy")
-plt.xlabel('Number of epoches')
-plt.title('Accuracy')
-plt.legend()
-plt.savefig('2dCNN_accuracy.png')
-plt.show()
+plot_train_result(history, save_path=None)
