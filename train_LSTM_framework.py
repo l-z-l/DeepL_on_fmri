@@ -92,6 +92,7 @@ for epoch in range(100):
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
         # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
+
 #########################################################
 # %% Plot result
 #########################################################

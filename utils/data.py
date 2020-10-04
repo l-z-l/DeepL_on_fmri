@@ -468,18 +468,18 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
 
 if __name__ == "__main__":
     ### LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL')
+    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL20')
     # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
 
     ### generate augmented data using sliding window and save
-    # mask = "Havard_Oxford"
-    # save = ''# f'../data/interpolation/{mask}/'
-    # if save and not os.path.isdir(save):
-    #     os.mkdir(save)
-    # for func in ['MAX', 'MEAN']:
-    #     for oneside_window_size in range(0, 2):
-    #         augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
-    #                                save=save)
+    mask = "AAL20"
+    save = f'../data/interpolation/{mask}/'
+    if save and not os.path.isdir(save):
+        os.mkdir(save)
+    for func in ['MAX', 'MEAN']:
+        for oneside_window_size in range(0, 2):
+            augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
+                                   save=save)
 
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     ### convert to functional connectivity
@@ -494,4 +494,4 @@ if __name__ == "__main__":
     # sparse_adj_list = sym_normalize_adj(connectivities)
 
     ###
-    new = cluster_based_on_correlation(ROI_signals, labels, 20)
+    # new = cluster_based_on_correlation(ROI_signals, labels, 20)

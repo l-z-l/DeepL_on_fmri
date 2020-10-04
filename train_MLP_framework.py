@@ -16,125 +16,95 @@ from sklearn.metrics import accuracy_score
 # plot
 import matplotlib.pyplot as plt
 
+
+MODEL_NANE = "MLP_baseline"
 ##########################################################
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL20')
 # convert to functional connectivity
-connectivity_matrices = signal_to_connectivities(ROIs, kind='tangent', discard_diagonal=True, vectorize=True)
+connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
 
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 ##########################################################
-# %% initialise mode and
+# %% initialise model and loss func
 ##########################################################
 
 print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
-optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
-loss = torch.nn.BCELoss().to(device)
+# optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
+optimizer = optim.Adam(model.parameters(), lr=0.00005, weight_decay=args.weight_decay)
 
-loss_values, testing_acc = [], []
+# criterion = torch.nn.BCELoss().to(device)
+criterion = torch.nn.BCELoss().to(device)
 
-def test(X_test, y_test):
-    # Test
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for data, target in zip(X_test, y_test):
-            pred_probs = model(data)
-            pred_probs = torch.squeeze(pred_probs.detach().cpu())
-            # sum up batch loss
-            test_loss = loss(pred_probs, torch.tensor([target]))
-            # print(f"O:{output.view(1)} T:{target}")
-            pred = pred_probs > 0.5
-            correct += (pred == target).sum()
-
-    test_loss /= len(X_test)
-    acc = 100. * correct / len(X_test)
-    # print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-    #     test_loss, correct, len(X_test),
-    #     acc))
-    return acc/100, test_loss
-
-# # Spliting the data
-np.random.seed(42)
-
-# no need to do batch, since dataset size is small (79)
-loss_values = []
-acc_values = []
-testing_loss = []
-testing_acc = []
-
-test_size = int(X.shape[0] * 0.15)
-for epoch in range(1500):
+train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(500):
     model.train()
-    optimizer.zero_grad()
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
 
-    running_loss = 0.0
-    total_acc = 0
+    for batch_id, data in enumerate(train_vec_loader(batch_size=128, mode='train', input=X, target=label)()):
+        # Preparing Data
+        input_data, label_data = data
+        input_data, label_data = input_data.to(device), label_data.to(device)
 
-    # random permutate data
-    idx_batch = np.random.permutation(int(X.shape[0])) # np.array(range(0, X.shape[0])) #
-    idx_batch_test = idx_batch[:int(test_size)]
-    idx_batch_train = idx_batch[-int(len(X) - test_size):]
-    # batch
-    train_label_batch = label[idx_batch_train].to(device)
-    train_data_batch = X[idx_batch_train].to(device)
-    test_label_batch = label[idx_batch_test].to(device)
-    test_data_batch = X[idx_batch_test].to(device)
+        optimizer.zero_grad()
+        predict = model(input_data)
 
-    # train
-    pred_probs = model(train_data_batch)
-    y_pred = pred_probs > 0.5
-    loss_val = loss(pred_probs, train_label_batch)
-    loss_val.backward()
-    optimizer.step()
+        # out = torch.squeeze(predict) #.detach().cpu())
+        ### BCE
+        pred = predict > 0.5
+        correct += (torch.squeeze(pred) == label_data).sum()
 
-    loss_values.append(loss_val / len(train_data_batch))
+        ### Cross Entropy
+        # pred = out.max(dim=-1)[-1]
+        # out = out.squeeze()
+        # correct += pred.eq(label_data).sum().item()
 
-    acc = accuracy_score(train_label_batch.cpu(), y_pred.cpu())
-    if epoch % 100 == 0:
-        print("Training --------> Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val, acc))
-        print("-" * 80)
-        print("Testing Epoch: {}".format(epoch))
-        model.eval()
-        with torch.no_grad():
-            pred_prob_test = model(test_data_batch)
-            y_pred_test = pred_prob_test > 0.5
-            loss_val_test = loss(pred_prob_test, test_label_batch)
-            acc_test = accuracy_score(test_label_batch.cpu(), y_pred_test.cpu())
-            print("Epoch: {}, Loss: {}, Accuracy: {}".format(epoch, loss_val_test, acc_test))
-        print("-" * 80)
-
-'''
-# testing
-net.eval()
-with torch.no_grad():
-    correct = 0
-    total = 0
-    for batch in train_loader(mode='test', input=sparse_adj_list, feature=H_0, target=label)():
-        input_data, label_data, feat_data = batch
-        input_data = input_data.to(device)
-        feat_data = feat_data.to(device)
-        # Get a batch and potentially send it to GPU memory.
-        predict = net((feat_data, input_data))
-
-        out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-
-        pred = out.max(dim=1)[1]
-        correct += pred.eq(label_data).sum().item()
         total += len(label_data)
-    print(f"Correct: {correct}, total: {total}, Accuracy: {int(correct)/total * 100}")
 
-'''
+        # Compute the loss
+        loss = criterion(predict, label_data) #, requires_grad=True)
+        # loss = criterion(out, label_data.float())
+        # F.nll_loss(out, label_data)
+        # Calculate gradients.
+        loss.backward()
+        # Minimise the loss according to the gradient.
+        optimizer.step()
+
+        # running_loss = (loss / len(input_data))
+        train_loss += loss.item()
+    train_loss_list.append(train_loss/total)
+    training_acc.append(int(correct)/total * 100)
+
+    ### test
+    model.eval()
+    with torch.no_grad():
+        for batch_id, data in enumerate(train_vec_loader(batch_size=50, mode='test', input=X, target=label)()):
+            val_x, val_y = data
+            val_x, val_y = val_x.to(device), val_y.to(device)
+
+            val_predict = model(val_x)
+            ### BCE Loss
+            pred = val_predict > 0.5
+            loss = criterion(val_predict, val_y)
+
+            val_loss += loss.item()
+            val_correct += (torch.squeeze(pred) == val_y).sum()
+            val_total += len(val_y)
+
+    val_loss_list.append(val_loss/val_total)
+    testing_acc.append(int(val_correct) / val_total * 100)
+    if epoch % 50 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+
 #########################################################
 # %% Plot result
 #########################################################
@@ -144,7 +114,7 @@ plt.plot(np.array(val_loss_list), label="Testing Loss function")
 plt.xlabel('Number of epoches')
 plt.title('Loss value')
 plt.legend()
-plt.savefig('loss.png')
+plt.savefig(f'{MODEL_NANE}_loss.png')
 plt.show()
 
 print('Finished Testing Trainset')
@@ -153,5 +123,5 @@ plt.plot(np.array(testing_acc), label="Test Accuracy")
 plt.xlabel('Number of epoches')
 plt.title('Accuracy')
 plt.legend()
-plt.savefig('accuracy.png')
+plt.savefig(f'{MODEL_NANE}_accuracy.png')
 plt.show()
