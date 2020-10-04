@@ -8,7 +8,8 @@ import numpy as np
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import train_loader, plot_train_result, num_correct
+from utils.helper import train_loader, plot_train_result, cross_validation_train_vec_loader, train_vec_loader_2, \
+    num_correct
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -29,10 +30,10 @@ X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
-
 ##########################################################
 # %% initialise model and loss func
 ##########################################################
+
 print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
@@ -42,64 +43,75 @@ optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_d
 # criterion = torch.nn.BCELoss().to(device)
 criterion = torch.nn.BCELoss().to(device)
 
-train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(100):
-    model.train()
-    train_loss, correct, total = 0, 0, 0
-    val_loss, val_correct, val_total = 0, 0, 0
 
-    for batch_id, (train_x, train_y) in enumerate(
-            train_loader(batch_size=64, mode='train', input=X, target=label)()):
-        # Preparing Data
-        train_x, train_y = train_x.to(device), train_y.to(device)
+def weight_init(m):
+    if isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
+        nn.init.zeros_(m.bias)
 
-        optimizer.zero_grad()
-        predict = model(train_x)
 
-        correct += num_correct(predict, train_y)
-        total += len(train_y)
+for train_index, test_index in cross_validation_train_vec_loader(X, 5):
+    model.apply(weight_init)
+    train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
+    for epoch in range(100):
+        model.train()
+        train_loss, correct, total = 0, 0, 0
+        val_loss, val_correct, val_total = 0, 0, 0
 
-        # Compute the loss
-        loss = criterion(predict.squeeze(), train_y)  # , requires_grad=True)
-        # Calculate gradients.
-        loss.backward()
-        # Minimise the loss according to the gradient.
-        optimizer.step()
+        ### train ###
+        for batch_id, (train_x, train_y) in enumerate(
+                train_vec_loader_2(batch_size=64, mode='train', input=X, target=label, train_index=train_index,
+                                   test_index=test_index)()):
+            # Preparing Data
+            train_x, train_y = train_x.to(device), train_y.to(device)
+            # Feedforward
+            optimizer.zero_grad()
+            predict = model(train_x)
 
-        train_loss += loss.item()
+            # Compute the loss
+            loss = criterion(predict.squeeze(), train_y)
+            loss.backward()
+            optimizer.step()
 
-    train_loss_list.append(train_loss / total)
-    training_acc.append(int(correct) / total * 100)
+            correct += num_correct(predict, train_y)
+            total += len(train_y)
+            train_loss += loss.item()
 
-    ### test ###
-    model.eval()
-    with torch.no_grad():
-        for val_batch_id, (val_x, val_y) in enumerate(
-                train_loader(batch_size=128, mode='test', input=X, target=label)()):
-            val_x, val_y = val_x.to(device), val_y.to(device)
+        train_loss_list.append(train_loss / total)
+        training_acc.append(int(correct) / total * 100)
 
-            val_predict = model(val_x)
-            val_correct += num_correct(val_predict, val_y)
+        ### test ###
+        model.eval()
+        with torch.no_grad():
+            for val_batch_id, (val_x, val_y) in enumerate(
+                    train_vec_loader_2(batch_size=50, mode='test', input=X, target=label, train_index=train_index,
+                                       test_index=test_index)()):
+                val_x, val_y = val_x.to(device), val_y.to(device)
 
-            val_total += len(val_y)
-            val_loss += criterion(val_predict.squeeze(), val_y).item()
+                val_predict = model(val_x)
+                val_correct += num_correct(val_predict, val_y)
 
-    test_loss_list.append(val_loss / val_total)
-    testing_acc.append(int(val_correct) / val_total * 100)
+                val_total += len(val_y)
+                val_loss += criterion(val_predict.squeeze(), val_y).item()
 
-    if epoch % 50 == 0:
-        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-        print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+        test_loss_list.append(val_loss / val_total)
+        testing_acc.append(int(val_correct) / val_total * 100)
 
-history = {
-    "train_loss": train_loss_list,
-    "train_acc": training_acc,
-    "test_loss": test_loss_list,
-    "test_acc": testing_acc,
-}
-history = pd.DataFrame(history)
+        if epoch % 50 == 0:
+            print(
+                f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+            print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+            # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
+
+# history = {
+#     "train_loss": train_loss_list,
+#     "train_acc": training_acc,
+#     "test_loss": val_loss_list,
+#     "test_acc": testing_acc,
+# }
+# history = pd.DataFrame(history)
 
 #########################################################
 # %% Plot result
 #########################################################
-plot_train_result(history, save_path=None)
+# plot_train_result(history, save_path=None)
