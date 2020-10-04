@@ -64,18 +64,10 @@ def train_vec_loader_2(batch_size, input, target, train_index, test_index, mode=
         "length of train_subject({}) should be the same as train_labels({})".format(
             len(input), len(target))
 
-    # Define loaders
-    # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    # train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.15, random_state=random_num)
-
     train_data = input[train_index]
     test_data = input[test_index]
     train_label = target[train_index]
     test_label = target[test_index]
-
-    # print("train shape {} & {}".format(len(train_data), train_label.shape))
-    # print("test shape {} & {}".format(len(test_data), test_label.shape))
-    # print("test shape {} & {}".format(len(train_feat), len(test_feat)))
 
     if mode == 'train':
         input_data = train_data  # convert to tensor
@@ -178,8 +170,13 @@ def plot_train_result(history, best_epoch=None, save_path=None):
     fig = plt.figure(figsize=(15, 20))
     gs = GridSpec(2, 2, figure=fig)
 
-    ax1 = fig.add_subplot(gs[0, :])  # full top row: global VAE loss
-    ax2 = fig.add_subplot(gs[1, :])  # top row on 4x4 grid: reconstruction
+    ax1 = fig.add_subplot(gs[0, :])  # 1st row, entire row : global VAE loss
+    ax2 = fig.add_subplot(gs[1, :])  # 2ndst row, entire row  on 2 * 2 grid: reconstruction
+
+    # ax3 = fig.add_subplot(gs[2, 0])  # top left on a 4x4 grid: KL divergence
+    # ax4 = fig.add_subplot(gs[2, 1])  # bottom right on a 4x4 grid: MI
+
+
     #  plot the overall loss
     ax1.set_title('Loss')
     ax1.plot(history['train_loss'], color='dodgerblue', label='train')

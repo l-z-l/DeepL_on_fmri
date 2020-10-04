@@ -46,14 +46,13 @@ criterion = torch.nn.BCELoss().to(device)
 
 def weight_init(m):
     if isinstance(m, nn.Linear):
-        nn.init.xavier_uniform_(m.weight, gain=nn.init.calculate_gain('relu'))
+        nn.init.xavier_normal_(m.weight, gain=nn.init.calculate_gain('relu'))
         nn.init.zeros_(m.bias)
-
 
 for train_index, test_index in cross_validation_train_vec_loader(X, 5):
     model.apply(weight_init)
     train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-    for epoch in range(100):
+    for epoch in range(10):
         model.train()
         train_loss, correct, total = 0, 0, 0
         val_loss, val_correct, val_total = 0, 0, 0
@@ -103,15 +102,15 @@ for train_index, test_index in cross_validation_train_vec_loader(X, 5):
             print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
             # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 
-# history = {
-#     "train_loss": train_loss_list,
-#     "train_acc": training_acc,
-#     "test_loss": val_loss_list,
-#     "test_acc": testing_acc,
-# }
-# history = pd.DataFrame(history)
+history = {
+    "train_loss": train_loss_list,
+    "train_acc": training_acc,
+    "test_loss": test_loss_list,
+    "test_acc": testing_acc,
+}
+history = pd.DataFrame(history)
 
 #########################################################
 # %% Plot result
 #########################################################
-# plot_train_result(history, save_path=None)
+plot_train_result(history, save_path=None)
