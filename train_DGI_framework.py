@@ -11,7 +11,7 @@ from utils.config import args
 from utils.helper import masked_loss, masked_acc
 import random
 from sklearn.model_selection import train_test_splits
-from utils.helper import train_loader
+from utils.helper import train_loader_graph
 # plot
 import matplotlib.pyplot as plt
 
@@ -55,7 +55,7 @@ for epoch in range(200):
     running_loss = 0
     correct = 0
     total = 0
-    for batch_id, data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
+    for batch_id, data in enumerate(train_loader_graph(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
         # Preparing Data
         adj, _, feat_data = data
         adj = adj.to(device)

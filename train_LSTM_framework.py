@@ -8,7 +8,7 @@ import numpy as np
 from utils.data import *
 from models.LSTM import LSTM
 from utils.config import args
-from utils.helper import train_vec_loader, train_loader, plot_train_result
+from utils.helper import train_loader, train_loader_graph, plot_train_result, num_correct
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -39,63 +39,58 @@ model = LSTM(input_size=X.shape[2], hidden_dim=16, seq_len=X.shape[1], num_layer
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 criterion = nn.CrossEntropyLoss().to(device)
 
-train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
+train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
 for epoch in range(100):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
 
     ### train ###
-    for batch_id, data in enumerate(train_vec_loader(batch_size=64, mode='train', input=X, target=label)()):
+    for batch_id, (train_x, train_y) in enumerate(
+            train_loader(batch_size=64, mode='train', input=X, target=label)()):
         # Preparing Data
-        input_data, label_data = data
-        input_data, label_data = input_data.to(device), label_data.to(device)
+        train_x, train_y = train_x.to(device), train_y.to(device)
         # Feedforward
         optimizer.zero_grad()
-        predict = model(input_data)
+        predict = model(train_x)
+
         # Compute the loss
-        loss = criterion(predict, label_data.long())
+        loss = criterion(predict.squeeze(), train_y.long())
         loss.backward()
         optimizer.step()
 
-        # out = torch.squeeze(predict.detach().cpu())
-        # pred = out > 0.5
-        # correct += (pred == label_data).sum()
-        ### using NLL or CrossEntropyLoss
-        pred = predict.max(dim=-1)[-1]
-        correct += pred.eq(label_data).sum().item()
-        total += len(label_data)
+        correct += num_correct(predict, train_y)
+        total += len(train_y)
         train_loss += loss.item()
+
+    train_loss_list.append(train_loss / total)
+    training_acc.append(int(correct) / total * 100)
 
     ### test ###
     model.eval()
     with torch.no_grad():
-        for val_batch_id, val_data in enumerate(train_vec_loader(batch_size=128, mode='test', input=X, target=label)()):
-            val_x, val_y = val_data
-            val_x = val_x.to(device)
-            val_y = val_y.to(device)
+        for val_batch_id, (val_x, val_y) in enumerate(
+                train_loader(batch_size=128, mode='test', input=X, target=label)()):
+            val_x, val_y = val_x.to(device), val_y.to(device)
 
             val_predict = model(val_x)
-            val_pred = val_predict.max(dim=-1)[-1]
-            val_correct += val_pred.eq(val_y).sum().item()
+            val_correct += num_correct(val_predict, val_y)
 
             val_total += len(val_y)
-            val_loss += criterion(val_predict, val_y.long()).item()
+            val_loss += criterion(val_predict.squeeze(), val_y).item()
 
-    train_loss_list.append(train_loss / total)
-    training_acc.append(int(correct) / total * 100)
-    val_loss_list.append(val_loss / val_total)
+    test_loss_list.append(val_loss / val_total)
     testing_acc.append(int(val_correct) / val_total * 100)
 
     if epoch % 50 == 0:
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-        print(f"Test loss: {val_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+        print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
         # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 
 history = {
     "train_loss": train_loss_list,
     "train_acc": training_acc,
-    "test_loss": val_loss_list,
+    "test_loss": test_loss_list,
     "test_acc": testing_acc,
 }
 history = pd.DataFrame(history)

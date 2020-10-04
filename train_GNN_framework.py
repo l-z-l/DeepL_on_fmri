@@ -11,7 +11,7 @@ from utils.config import args
 from utils.helper import masked_loss, masked_acc
 import random
 from sklearn.model_selection import train_test_splits
-from utils.helper import train_loader
+from utils.helper import train_loader_graph
 # plot
 import matplotlib.pyplot as plt
 
@@ -57,7 +57,7 @@ for epoch in range(1000):
     val_loss, val_correct, val_total = 0, 0, 0
 
     ### train ###
-    for batch_id, data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
+    for batch_id, data in enumerate(train_loader_graph(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
         model.train()
         # Preparing Data
         input_data, label_data, feat_data = data
@@ -81,7 +81,7 @@ for epoch in range(1000):
     ### test ###
     model.eval()
     with torch.no_grad():
-        for val_batch_id, val_data in enumerate(train_loader(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
+        for val_batch_id, val_data in enumerate(train_loader_graph(mode='train', input=sparse_adj_list, target=label, feature=H_0)()):
             val_x, val_y, val_feat = val_data
             val_x, val_y, val_feat = val_x.to(device), val_y.to(device), val_feat.to(device)
 

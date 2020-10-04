@@ -8,7 +8,7 @@ import numpy as np
 from utils.data import *
 from models.CNN import SpatialTemporalCNN
 from utils.config import args
-from utils.helper import train_vec_loader, train_loader, plot_train_result
+from utils.helper import train_loader, train_loader_graph, plot_train_result
 
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -45,7 +45,7 @@ for epoch in range(1000):
     val_loss, val_correct, val_total = 0, 0, 0
 
     ### train ###
-    for batch_id, data in enumerate(train_vec_loader(batch_size=128, mode='train', input=X, target=label)()):
+    for batch_id, data in enumerate(train_loader(batch_size=128, mode='train', input=X, target=label)()):
         # Preparing Data
         input_data, label_data = data
         input_data, label_data = input_data.to(device), label_data.to(device)
@@ -69,7 +69,7 @@ for epoch in range(1000):
     ### test ###
     model.eval()
     with torch.no_grad():
-        for val_batch_id, val_data in enumerate(train_vec_loader(batch_size=128, mode='test', input=X, target=label)()):
+        for val_batch_id, val_data in enumerate(train_loader(batch_size=128, mode='test', input=X, target=label)()):
             val_x, val_y = val_data
             val_x = val_x.to(device)
             val_y = val_y.to(device)
