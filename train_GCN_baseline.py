@@ -8,7 +8,7 @@ from torch_geometric.data import Dataset
 from torch import nn
 from torch import optim
 
-from models.GNN import GNN
+from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed
 import numpy as np
 import pandas as pd
@@ -23,16 +23,17 @@ from datetime import datetime
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'GCN_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
 dataset_name = '273_MSDL'
-save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
-# if the dir dsnt exist
-if SAVE and not os.path.isdir(save_path):
-    os.mkdir(save_path)
-
+if SAVE:
+    save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
+    if not os.path.isdir(save_path):
+        os.mkdir(save_path)
+else:
+    save_path = ''
 ##########################################################
 # %% Load Data
 ###############train_test_split###########################
@@ -73,7 +74,7 @@ for i, matrix in enumerate(connectivity_matrices):
 
     # convert to 0 or 1
     matrix[matrix != 0] = 1
-    np.fill_diagonal(matrix, 1)
+    # np.fill_diagonal(matrix, 1)
 
     ### reshape edge tensor
     edge_index = sp.coo_matrix(matrix)
@@ -88,7 +89,7 @@ for i, matrix in enumerate(connectivity_matrices):
 
 ### sampling
 train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
-                                        test_size=0.2,
+                                        test_size=0.15,
                                         shuffle=True)
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
@@ -100,16 +101,16 @@ test_loader = DataLoader(graphs, batch_size=32, sampler=valid_sampler,)
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
-model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
+model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device) #GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.0005)
 criterion = nn.CrossEntropyLoss().to(device)
 
 # TODO: Edge normalizaiton
 # TODO: SYmmetrical Normalization
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(1000):
+for epoch in range(500):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -119,7 +120,7 @@ for epoch in range(1000):
         data = data.to(device)
         # Feedforward
         optimizer.zero_grad()
-        predict = model(data.x, data.edge_index, data.batch)
+        predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
 
         # Compute the loss
         loss = criterion(predict.squeeze(), data.y.long())
@@ -139,7 +140,7 @@ for epoch in range(1000):
         for test_data in test_loader:  # Iterate in batches over the training dataset.
             test_data = test_data.to(device)
 
-            val_predict = model(test_data.x, test_data.edge_index, test_data.batch)
+            val_predict = model(test_data.x, test_data.edge_index, test_data.edge_attr, test_data.batch)
             val_correct += num_correct(val_predict, test_data.y)
 
             val_total += len(test_data.y)

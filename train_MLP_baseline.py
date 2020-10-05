@@ -19,16 +19,17 @@ import matplotlib.pyplot as plt
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'MLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
-datadir = './data' # 'data/interpolation/MSDL'
+datadir = 'data/interpolation/AAL'
 outdir = './outputs'
-dataset_name = '273_MSDL'
-save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
-# if the dir dsnt exist
-if SAVE and not os.path.isdir(save_path):
-    os.mkdir(save_path)
-
+dataset_name = '2710_10_MAX_0_AAL'
+if SAVE:
+    save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
+    if not os.path.isdir(save_path):
+        os.mkdir(save_path)
+else:
+    save_path = ''
 ##########################################################
 # %% Load Data
 ###############train_test_split###########################################
@@ -49,13 +50,12 @@ print("--------> Using ", device)
 model = Linear(X.shape[1], 1)
 model.to(device)
 # optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
-optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_decay)
+optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 
-# criterion = torch.nn.BCELoss().to(device)
 criterion = torch.nn.BCELoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(3000):
+for epoch in range(1000):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0

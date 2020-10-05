@@ -238,6 +238,9 @@ def num_correct(output, labels):
     corr = len(labels)
     if output.shape[1] > 1:
         ### log softnax and Cross Entropy
+        # if len(labels) != len(output):
+        #     print(len(labels), len(output))
+        #     return 0
         pred = output.max(dim=-1)[-1]
         corr = pred.eq(labels).sum().item()
     else:
