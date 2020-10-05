@@ -215,7 +215,16 @@ def sparse_to_tuple(sparse_mx):
     return sparse_mx
 
 
-def normalize_features(mx_list):
+def normalize(mx):
+    rowsum = np.array(mx.sum(0))
+    r_inv = np.power(rowsum, -1).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = sp.diags(r_inv)
+    mx = r_mat_inv.dot(mx.T).T
+    return mx
+
+
+def normalize_features_list(mx_list):
     '''
     normalize adjacency matrix.
     Params :
@@ -236,6 +245,19 @@ def normalize_features(mx_list):
     return list_2_tensor(matrices)
 
 
+# return tensor in coo matrix
+def sym_normalize(adj):
+    adj += sp.eye(adj.shape[0])  # A^hat = A + I
+    rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
+
+    adj = sp.coo_matrix(adj)
+    d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
+    adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
+    return sp.coo_matrix(adj)
+
+
 def sym_normalize_adj(connectivity_matrices):
     '''
     Symmetrically normalize adjacency matrix.
@@ -253,7 +275,7 @@ def sym_normalize_adj(connectivity_matrices):
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
@@ -395,7 +417,7 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
 
     if save:
         save_path = save + "{}_{}_{}_{}_{}".format(len(new_subjects_list), stride_size, func, oneside_window_size,
-                                                         mask)
+                                                   mask)
         np.save(save_path, new_subjects_list)
         np.save(save_path + "_label", new_label_list)
 
@@ -450,7 +472,9 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
             selected = ROI_signals[i, :, roi_index_list]
             ret.append(np.mean(selected, axis=0))
         clustered_roi_signals.append(ret)
-    return np.array(clustered_roi_signals) #271*20*140
+    return np.array(clustered_roi_signals)  # 271*20*140
+
+
 ### Example usage
 # device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 # print("Available computing device: ", device)

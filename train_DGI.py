@@ -29,7 +29,7 @@ connectivity_matrices, _ = threshold(connectivity_matrices)
 
 ### inital and node/edge embeddings
 H_0 = node_embed(connectivity_matrices, 'MSDL')
-H_0 = Variable(normalize_features(H_0), requires_grad=False).to(device)
+H_0 = Variable(normalize_features_list(H_0), requires_grad=False).to(device)
 # torch.save(H_0, "./data/273_MSDL_node.pt")
 # H_0 = torch.load(f"./data/{dataset}_node.pt")
 # H_0 = torch.randn((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 50))

@@ -9,7 +9,8 @@ from torch import nn
 from torch import optim
 
 from models.GNN import GNN, GNN_SAG
-from utils.data import load_fmri_data, signal_to_connectivities, node_embed
+from utils.data import load_fmri_data, signal_to_connectivities, node_embed, normalize_features_list, sym_normalize_adj, \
+    normalize, sym_normalize
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -39,7 +40,6 @@ else:
 ###############train_test_split###########################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 
-# ROIs, labels, labels_index = load_fmri_data(dataDir='data/interpolation/MSDL', dataset='2730_10_MAX_0_MSDL')
 ROIs, labels, labels_index = load_fmri_data(dataDir=datadir, dataset=dataset_name)
 labels = [x if (x == "CN") else "CD" for x in labels]
 
@@ -54,17 +54,14 @@ covariance = signal_to_connectivities(ROIs, kind='covariance')
 graphs = []
 for i, matrix in enumerate(connectivity_matrices):
     # node is not self connected
-    np.fill_diagonal(matrix, 0)
+    # np.fill_diagonal(matrix, 0)
     mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
 
     ### THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
-    mask = abs(matrix) <= (mean + 0.5 * std)
+    mask = abs(matrix) < (mean) # + 0.5 * std)
     matrix[mask] = 0
     partial_corr[i][mask] = 0
     covariance[i][mask] = 0
-
-    ### node_embed
-    x = node_embed([matrix], mask_coord='MSDL').squeeze()
 
     ### edge_attr
     corr = sp.coo_matrix(matrix)
@@ -74,18 +71,22 @@ for i, matrix in enumerate(connectivity_matrices):
 
     # convert to 0 or 1
     matrix[matrix != 0] = 1
+
+    ### node_embed
+    x = node_embed([matrix], mask_coord='MSDL').squeeze()
+    x = torch.from_numpy(normalize(x))
     # np.fill_diagonal(matrix, 1)
 
-    ### reshape edge tensor
-    edge_index = sp.coo_matrix(matrix)
+    ### normalise graph adj
+    edge_index = sym_normalize(matrix)
     edge_index = torch.from_numpy(np.vstack((edge_index.row, edge_index.col))).long()
 
     graphs.append(Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=label[i:i+1]))
 
-    # print(f"Data: {graphs[-1]}")
-    # print(f'Is directed: {graphs[-1].is_undirected()}')
-    # print(f'Contains isolated nodes: {graphs[-1].contains_isolated_nodes()}')
-    # print(f'Self Connected: {graphs[-1].contains_self_loops()}')
+print(f"Data: {graphs[-1]}")
+print(f'Is directed: {graphs[-1].is_undirected()}')
+print(f'Contains isolated nodes: {graphs[-1].contains_isolated_nodes()}')
+print(f'Self Connected: {graphs[-1].contains_self_loops()}')
 
 ### sampling
 train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
@@ -94,8 +95,8 @@ train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
 
-train_loader = DataLoader(graphs, batch_size=32, sampler=train_sampler)
-test_loader = DataLoader(graphs, batch_size=32, sampler=valid_sampler,)
+train_loader = DataLoader(graphs, batch_size=64, sampler=train_sampler)
+test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler,)
 
 ##########################################################
 # %% initialise model and loss func
@@ -107,10 +108,8 @@ optimizer = optim.Adam(model.parameters(), lr=0.0005)
 criterion = nn.CrossEntropyLoss().to(device)
 
 # TODO: Edge normalizaiton
-# TODO: SYmmetrical Normalization
-
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(500):
+for epoch in range(1000):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0

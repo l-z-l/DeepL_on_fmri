@@ -17,7 +17,7 @@ from torch_geometric.nn import GraphConv, SAGPooling, JumpingKnowledge
 
 
 class GNN_SAG(torch.nn.Module):
-    def __init__(self, num_features, nhid, num_classes=2, pooling_ratio=0.5, dropout_ratio=0.2):
+    def __init__(self, num_features, nhid, num_classes=2, pooling_ratio=0.5, dropout_ratio=0.3):
         super(GNN_SAG, self).__init__()
         self.num_features = num_features
         self.nhid = nhid
