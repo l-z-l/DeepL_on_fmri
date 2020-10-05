@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pickle as pkl
 import networkx as nx
@@ -23,10 +25,6 @@ def train_loader(batch_size, input, target, mode='train'):
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
     train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.15, random_state=0)
-
-    # print("train shape {} & {}".format(len(train_data), train_label.shape))
-    # print("test shape {} & {}".format(len(test_data), test_label.shape))
-    # print("test shape {} & {}".format(len(train_feat), len(test_feat)))
 
     if mode == 'train':
         input_data = train_data  # convert to tensor
@@ -192,7 +190,7 @@ def plot_train_result(history, best_epoch=None, save_path=None):
     ax2.legend()
 
     if save_path:
-        plt.savefig(save_path + 'loss_eval.png')
+        plt.savefig(os.path.join(save_path, 'loss_eval.png'))
 
     plt.show()
 
@@ -238,7 +236,7 @@ def num_correct(output, labels):
         num of correct prediction : int
     """
     corr = len(labels)
-    if len(labels.shape) > 1:
+    if output.shape[1] > 1:
         ### log softnax and Cross Entropy
         pred = output.max(dim=-1)[-1]
         corr = pred.eq(labels).sum().item()

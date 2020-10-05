@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 MODEL_NANE = "MLP_baseline"
 ##########################################################
 # %% Load Data
-###############train_test_split###########################################
+###############train_test_split###########################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ROIs, labels, labels_index = load_fmri_data(dataDir='data', dataset='271_AAL')
 # convert to functional connectivity
@@ -30,6 +30,7 @@ X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
+
 ##########################################################
 # %% initialise model and loss func
 ##########################################################

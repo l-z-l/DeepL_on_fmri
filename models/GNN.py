@@ -1,13 +1,43 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch_geometric.data import dataset
+
 from models.layers import GraphConv
 from utils.config import args
 from utils.data import list_2_tensor
 
 import torch.nn as nn
-from models.layers import GraphConv, AvgReadout
+from models.layers import AvgReadout
 
+from torch.nn import Linear
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
+from torch_geometric.nn import global_mean_pool
+from torch_geometric.nn import GraphConv
+
+
+class GNN(torch.nn.Module):
+    def __init__(self, hidden_channels, num_node_features, num_classes):
+        super(GNN, self).__init__()
+        self.conv1 = GraphConv(num_node_features, hidden_channels)
+        self.conv2 = GraphConv(hidden_channels, hidden_channels)
+        self.lin = Linear(hidden_channels, num_classes)
+
+    def forward(self, x, edge_index, batch):
+        # 1. Obtain node embeddings
+        x = self.conv1(x, edge_index)
+        x = x.relu()
+        x = self.conv2(x, edge_index)
+
+        # 2. Readout layer
+        x = global_mean_pool(x, batch)  # [batch_size, hidden_channels]
+
+        # 3. Apply a final classifier
+        x = F.dropout(x, p=0.5, training=self.training)
+        x = self.lin(x)
+
+        return x
 
 
 class GCN(nn.Module):

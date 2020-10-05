@@ -72,7 +72,7 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
         - (n * nROI * nFeat torch.tensor) : the initial node embeddings
     '''
     ### load coordinates of mask
-    coordinate = torch.tensor(np.load(f'../data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
+    coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
 
     ### node embeddings using graph local measures
     H = []
