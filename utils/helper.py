@@ -8,13 +8,39 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from torch.nn import functional as F
 import torch
-import bct
 from scipy.sparse import csgraph
 from utils.data import load_fmri_data, list_2_tensor
 from sklearn.model_selection import train_test_split
 from torch.utils.data import random_split
 from sklearn.model_selection import KFold
+from sklearn.metrics import confusion_matrix
 import random
+import functools
+import operator
+
+
+def functools_reduce_iconcat(a):
+    return functools.reduce(operator.iconcat, a, [])
+def plot_confusion_matrix(label_truth, label_pred, save_path=None):
+    label_pred = functools_reduce_iconcat(label_pred)
+    label_truth = functools_reduce_iconcat(label_truth)
+    cm = confusion_matrix(label_truth, label_pred)
+    plt.clf()
+    plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Wistia)
+    classNames = ['Negative', 'Positive']
+    plt.title('Versicolor or Not Versicolor Confusion Matrix - Test Data')
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    tick_marks = np.arange(len(classNames))
+    plt.xticks(tick_marks, classNames, rotation=45)
+    plt.yticks(tick_marks, classNames)
+    s = [['TN', 'FP'], ['FN', 'TP']]
+    for i in range(2):
+        for j in range(2):
+            plt.text(j, i, str(s[i][j]) + " = " + str(cm[i][j]))
+    if save_path:
+        plt.savefig(os.path.join(save_path, 'Confusion_matrix.png'))
+    plt.show()
 
 
 def train_loader(batch_size, input, target, mode='train'):

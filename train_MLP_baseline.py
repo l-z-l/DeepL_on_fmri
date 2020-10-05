@@ -4,11 +4,11 @@ from torch import optim
 from torch.nn import functional as F
 from torch.autograd import Variable
 import numpy as np
-
+import os
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import train_loader, plot_train_result, num_correct
+from utils.helper import train_loader, plot_train_result, num_correct, plot_confusion_matrix
 from datetime import datetime
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = False
+SAVE = True
 MODEL_NANE = f'MLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = 'data/interpolation/AAL'
 outdir = './outputs'
@@ -55,7 +55,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_de
 criterion = torch.nn.BCELoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(1000):
+for epoch in range(100):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -102,6 +102,28 @@ for epoch in range(1000):
     if epoch % 50 == 0:
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+
+
+### test ###
+model.eval()
+label_truth = []
+label_pred = []
+with torch.no_grad():
+    for val_batch_id, (val_x, val_y) in enumerate(
+            train_loader(batch_size=128, mode='test', input=X, target=label)()):
+        label_truth.append(val_y.numpy().tolist())
+
+        val_x, val_y = val_x.to(device), val_y.to(device)
+
+        val_predict = model(val_x)
+        # val_correct += num_correct(val_predict, val_y)
+
+        pred = val_predict > 0.5
+        label_pred.append(pred.numpy().tolist())
+
+        val_total += len(val_y)
+        # val_loss += criterion(val_predict.squeeze(), val_y).item()
+plot_confusion_matrix(label_truth, label_pred, save_path)
 
 history = {
     "train_loss": train_loss_list,
