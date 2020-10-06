@@ -17,15 +17,15 @@ import scipy.sparse as sp
 import networkx as nx
 from torch_geometric.data import Data, DataLoader
 from utils.config import args
-from utils.helper import num_correct, plot_train_result
+from utils.helper import num_correct, plot_train_result, plot_confusion_matrix
 from datetime import datetime
 
 
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = False
-MODEL_NANE = f'GCN_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
+SAVE = True
+MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
 dataset_name = '273_MSDL'
@@ -102,14 +102,15 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler,)
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
-model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device) #GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
+# model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
+model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device) #
 
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 criterion = nn.CrossEntropyLoss().to(device)
 
 # TODO: Edge normalizaiton
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(1000):
+for epoch in range(200):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -171,3 +172,23 @@ if SAVE:
 # %% Plot result
 #########################################################
 plot_train_result(history, save_path=save_path)
+
+#########################################################
+# %% Evaluate result
+#########################################################
+### test ###
+model.eval()
+label_truth = []
+label_pred = []
+with torch.no_grad():
+    for test_data in test_loader:
+        label_truth.append(test_data.y.numpy().tolist())
+        test_data = test_data.to(device)
+
+        val_predict = model(test_data.x, test_data.edge_index, test_data.edge_attr, test_data.batch)
+
+        pred = val_predict.max(dim=-1)[-1] if val_predict.shape[1] > 1 else val_predict > 0.5
+
+        label_pred.append(pred.cpu().numpy().tolist())
+
+plot_confusion_matrix(label_truth, label_pred, save_path)

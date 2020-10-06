@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch_geometric.data import dataset
 
-from models.layers import GraphConv
+# from models.layers import GraphConv
 from utils.config import args
 from utils.data import list_2_tensor
 
@@ -66,6 +66,7 @@ class GNN(torch.nn.Module):
         # GraphConv Applied neighbourhood normalization
         self.conv1 = GraphConv(num_node_features, hidden_channels)
         self.conv2 = GraphConv(hidden_channels, hidden_channels)
+        self.conv3 = GraphConv(hidden_channels, hidden_channels)
         self.lin = Linear(hidden_channels, num_classes)
 
     def forward(self, x, edge_index, edge_attr, batch):
@@ -73,6 +74,9 @@ class GNN(torch.nn.Module):
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = self.conv2(x, edge_index)
+        x = x.relu()
+        x = self.conv3(x, edge_index)
+
 
         # 2. Readout layer
         x = global_mean_pool(x, batch)  # [batch_size, hidden_channels]

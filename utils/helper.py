@@ -13,10 +13,11 @@ from utils.data import load_fmri_data, list_2_tensor
 from sklearn.model_selection import train_test_split
 from torch.utils.data import random_split
 from sklearn.model_selection import KFold
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, f1_score, roc_curve, auc, precision_recall_curve
 import random
 import functools
 import operator
+import seaborn as sns
 
 
 def functools_reduce_iconcat(a):
@@ -24,22 +25,58 @@ def functools_reduce_iconcat(a):
 def plot_confusion_matrix(label_truth, label_pred, save_path=None):
     label_pred = functools_reduce_iconcat(label_pred)
     label_truth = functools_reduce_iconcat(label_truth)
+    # confusion matrix
     cm = confusion_matrix(label_truth, label_pred)
+    fpr, tpr, threshold = roc_curve(label_truth, label_pred)
+    roc_auc = auc(fpr, tpr)
+    precision, recall, _ = precision_recall_curve(label_truth, label_pred)
+    f1 = f1_score(label_truth, label_pred, average='weighted')
+
+    ### PLOT confusion matrix
     plt.clf()
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Wistia)
     classNames = ['Negative', 'Positive']
-    plt.title('Versicolor or Not Versicolor Confusion Matrix - Test Data')
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
     tick_marks = np.arange(len(classNames))
     plt.xticks(tick_marks, classNames, rotation=45)
     plt.yticks(tick_marks, classNames)
     s = [['TN', 'FP'], ['FN', 'TP']]
+    # label each grid
     for i in range(2):
         for j in range(2):
             plt.text(j, i, str(s[i][j]) + " = " + str(cm[i][j]))
+
     if save_path:
         plt.savefig(os.path.join(save_path, 'Confusion_matrix.png'))
+    plt.show()
+
+    ### PLot ROC UOC and F1 score
+    fig = plt.figure(figsize=(10, 15))
+    gs = GridSpec(2, 2, figure=fig)
+
+    ax1 = fig.add_subplot(gs[0, :])  # 1st row, entire row : global VAE loss
+    ax2 = fig.add_subplot(gs[1, :])  # 2ndst row, entire row  on 2 * 2 grid: reconstruction
+
+    # sns.heatmap(cm, annot=True, ax=ax1, cmap="YlGnBu");
+    # ax1.set_xlabel('Predicted labels'); ax1.set_ylabel('True labels');
+    # ax1.set_title('Confusion Matrix')
+    # ax1.xaxis.set_ticklabels(['business', 'health']); ax1.yaxis.set_ticklabels(['health', 'business']);
+
+    ax1.set_title('ROC')
+    ax1.plot(fpr, tpr, color='dodgerblue', marker='.', label='AUC = %0.2f' % roc_auc)
+    ax1.plot([0, 1], [0, 1], 'r--')
+    ax1.set_xlabel('True Positive'); ax1.set_ylabel('False Positive')
+
+    ax2.set_title('Precision_recall curve')
+    ax2.plot(recall, precision, color='dodgerblue', marker='.', label='F1 score = %0.2f' % f1)
+    ax2.set_xlabel('Recall'); ax2.set_ylabel('Precision')
+
+    ax1.legend()
+    ax2.legend()
+
+    if save_path:
+        plt.savefig(os.path.join(save_path, 'Evaluation Metrics.png'))
     plt.show()
 
 
