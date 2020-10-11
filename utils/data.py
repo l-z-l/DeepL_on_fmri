@@ -13,6 +13,7 @@ from nilearn.connectome import ConnectivityMeasure
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 from sklearn.metrics import roc_curve
+from sklearn.cluster import KMeans
 
 
 def checkNone(matrix_list):
@@ -72,7 +73,7 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
         - (n * nROI * nFeat torch.tensor) : the initial node embeddings
     '''
     ### load coordinates of mask
-    coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
+    # coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
 
     ### node embeddings using graph local measures
     H = []
@@ -102,7 +103,8 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
         for key, val in graph_measure.items():
             vec.append(val)
         # add coordinates of the ROIs
-        H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
+        # H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
+        H_i = torch.FloatTensor(vec).T
         H.append(H_i)
 
     return list_2_tensor(H)
@@ -491,20 +493,100 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
 # atlas_labels = atlas['labels']
 # print(cluster_based_on_correlation(ROI_signals, atlas_labels, 20))
 
+
+def corr_of_corr_with_time(subjects_list, label_list, stride, window, k_cluster, len_atlas):
+    '''
+    So assume we have 271 subjects, 116 rois from atlas, 140 timeframes, 8 timeframe after data augmentation by window 100 stride 5.
+
+    Step 1: data augmentation with continous timeframes and setted window size;
+    Step 2: flatten to (271, (1/2) * 116 * 116), 8) connectomes, which is subjects*connectomes on time dynamics
+    Step 3: cluster based on 271 subejcts and group the about 7000 connections to 100 ish
+    Step 4: run correlation on (271, 100, 8), and get (271, 100, 100) then flatten to (271, (1/2*100*100)) as input to gcn
+    '''
+    ROI_signals, labels = augment_with_window(window, subjects_list, label_list, stride)
+    # labels = [x if (x == "CN") else "CD" for x in labels]
+    cm = ConnectivityMeasure(kind='correlation')
+    num_subjects = len(label_list)
+
+    '''
+    Step 1
+    '''
+    connectivities_lists = []
+    flatten_many = []
+    s = 0
+    while s < len(labels) - num_subjects:  # loop over augmented subjects
+        connectivities_list = cm.fit_transform(ROI_signals[s:s + num_subjects])
+        connectivities_lists.append(connectivities_list)  # 8*(271*116*116) on window 100
+        # increment by 271 subjects, as we want to change the order of how we augmented
+        # we want it now each subjects have there consecutive corrs
+        s += num_subjects
+        '''
+        Step 2
+        '''
+        flatten_one = []
+        for i in range(num_subjects):  # 271
+            # take upper triangular for the correlation and do for each subject
+            flatten_one.append(list(connectivities_list[i][np.triu_indices(len_atlas)]))  # 271* upper(116*116)
+        flatten_many.append(flatten_one)  # 8 * 271 * upper(116*116)
+
+    flatten_many = np.asarray(flatten_many)
+    '''
+    Step 3
+    '''
+    avg_flats = np.mean(flatten_many, axis=0)  # 271*6786
+    kmeans = KMeans(n_clusters=k_cluster, random_state=0).fit(avg_flats.T)  # 6786 -> 50 clusters
+    '''
+    Step 4
+    '''
+    second_level = []
+    for t in range(flatten_many.shape[0]):  # num_augmented
+        inner_second_level = []
+        for s in range(flatten_many.shape[1]):  # time_frame
+            cols = {"cluster": kmeans.labels_, "connectomes": flatten_many[t, s, :]}
+            temp = pd.DataFrame(cols)
+            # group connectomes by cluster labels
+            inner_second_level.append(np.asarray(
+                temp.groupby("cluster")["connectomes"].mean()))  # 6786 -> 50 clusters by mean connectivity score
+        second_level.append(inner_second_level)
+    second_level = np.swapaxes(np.asarray(second_level), 0, 1)
+
+    # second_corr_mat = cm.fit_transform(second_level)
+    # print(second_corr_mat.shape)
+    return second_level
+    # retval = []
+    # for i in range(num_subjects):
+    #     flat = list(second_corr_mat[i][np.triu_indices(k_cluster)])  # (271 6786)
+    #     retval.append(flat)
+    #
+    # print(np.asarray(retval).shape)
+    # return np.asarray(retval)  # (271, 1275)
+
+
+#### Example usage
+# stride = 5
+# window = 100
+# k_cluster = 50
+# len_atlas = 116
+# subjects_list = np.load('/content/drive/My Drive/data/ADNI_denoised/271_AAL.npy', allow_pickle=True)
+# label_list = np.load('/content/drive/My Drive/data/ADNI_denoised/271_AAL_label.npy', allow_pickle=True)
+# input = corr_of_corr_with_time(subjects_list, label_list, stride, window, k_cluster, len_atlas)
+#
+
+
 if __name__ == "__main__":
     ### LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL20')
-    # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
-
-    ### generate augmented data using sliding window and save
-    mask = "AAL20"
-    save = f'../data/interpolation/{mask}/'
-    if save and not os.path.isdir(save):
-        os.mkdir(save)
-    for func in ['MAX', 'MEAN']:
-        for oneside_window_size in range(0, 2):
-            augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
-                                   save=save)
+    # ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL20')
+    # # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
+    #
+    # ### generate augmented data using sliding window and save
+    # mask = "AAL20"
+    # save = f'../data/interpolation/{mask}/'
+    # if save and not os.path.isdir(save):
+    #     os.mkdir(save)
+    # for func in ['MAX', 'MEAN']:
+    #     for oneside_window_size in range(0, 2):
+    #         augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
+    #                                save=save)
 
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     ### convert to functional connectivity
@@ -520,3 +602,14 @@ if __name__ == "__main__":
 
     ###
     # new = cluster_based_on_correlation(ROI_signals, labels, 20)
+
+    stride = 5
+    window = 100
+    k_cluster = 50
+    len_atlas = 116
+    subjects_list = np.load('../data/271_AAL.npy', allow_pickle=True)
+    label_list = np.load('../data/271_AAL_label.npy', allow_pickle=True)
+    input = corr_of_corr_with_time(subjects_list, label_list, stride, window, k_cluster, len_atlas)
+
+    np.save(f'../data/dynamic_fc/271_{k_cluster}_AAL', input)
+    np.save(f'../data/dynamic_fc/271_{k_cluster}_AAL_label', label_list)

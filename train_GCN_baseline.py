@@ -24,11 +24,11 @@ from datetime import datetime
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
-datadir = './data'
+datadir = './data/dynamic_fc'
 outdir = './outputs'
-dataset_name = '273_MSDL'
+dataset_name = '271_50_AAL'
 if SAVE:
     save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
     if not os.path.isdir(save_path):
@@ -102,8 +102,8 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler,)
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
-# model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
-model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device) #
+model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
+# model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device) #
 
 optimizer = optim.Adam(model.parameters(), lr=0.0005)
 criterion = nn.CrossEntropyLoss().to(device)
