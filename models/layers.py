@@ -123,7 +123,8 @@ class Conv(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
             nn.BatchNorm2d(out_channels),
-            nn.LeakyReLU()
+            nn.Dropout(0.1),
+            nn.ReLU()
         )
     def forward(self, x):
         return self.conv(x)

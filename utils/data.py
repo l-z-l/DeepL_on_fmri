@@ -12,6 +12,7 @@ import torch
 from nilearn.connectome import ConnectivityMeasure
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
+from sklearn.metrics import roc_curve
 
 
 def checkNone(matrix_list):
@@ -214,7 +215,16 @@ def sparse_to_tuple(sparse_mx):
     return sparse_mx
 
 
-def normalize_features(mx_list):
+def normalize(mx):
+    rowsum = np.array(mx.sum(0))
+    r_inv = np.power(rowsum, -1).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = sp.diags(r_inv)
+    mx = r_mat_inv.dot(mx.T).T
+    return mx
+
+
+def normalize_features_list(mx_list):
     '''
     normalize adjacency matrix.
     Params :
@@ -235,6 +245,19 @@ def normalize_features(mx_list):
     return list_2_tensor(matrices)
 
 
+# return tensor in coo matrix
+def sym_normalize(adj):
+    adj += sp.eye(adj.shape[0])  # A^hat = A + I
+    rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
+
+    adj = sp.coo_matrix(adj)
+    d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
+    adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
+    return sp.coo_matrix(adj)
+
+
 def sym_normalize_adj(connectivity_matrices):
     '''
     Symmetrically normalize adjacency matrix.
@@ -247,7 +270,7 @@ def sym_normalize_adj(connectivity_matrices):
     # TODO: Zelun read this thoroughly
     sparse_matrices = []
     for i, adj in enumerate(connectivity_matrices):
-        adj[adj != 0] = 1  # weighted graph
+        # adj[adj != 0] = 1  # weighted graph
         adj += sp.eye(adj.shape[0])  # A^hat = A + I
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
@@ -470,18 +493,18 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
 
 if __name__ == "__main__":
     ### LOAD data
-    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL')
+    ROI_signals, labels, labels_idex = load_fmri_data(dataset='271_AAL20')
     # new_subjects_list, new_label_list = augment_with_selection(0, ROI_signals, labels, stride_size=10, mask='MSDL', func="MAX", save='../data/interpolation/')
 
     ### generate augmented data using sliding window and save
-    # mask = "Havard_Oxford"
-    # save = ''# f'../data/interpolation/{mask}/'
-    # if save and not os.path.isdir(save):
-    #     os.mkdir(save)
-    # for func in ['MAX', 'MEAN']:
-    #     for oneside_window_size in range(0, 2):
-    #         augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
-    #                                save=save)
+    mask = "AAL20"
+    save = f'../data/interpolation/{mask}/'
+    if save and not os.path.isdir(save):
+        os.mkdir(save)
+    for func in ['MAX', 'MEAN']:
+        for oneside_window_size in range(0, 2):
+            augment_with_selection(oneside_window_size, ROI_signals, labels, stride_size=10, mask=mask, func=func,
+                                   save=save)
 
     # ROI_signals[155] = np.nan_to_num(ROI_signals[155])
     ### convert to functional connectivity
@@ -496,24 +519,4 @@ if __name__ == "__main__":
     # sparse_adj_list = sym_normalize_adj(connectivities)
 
     ###
-    new = cluster_based_on_correlation(ROI_signals, labels, 20)
-
-
-def load_ensembled_data(dataDir='../data', roi_type=None, num_subject=273, verbose=False):
-    if roi_type is None:
-        roi_type = []
-    subjects = []
-    label_list = None
-    for roi in roi_type:
-        dataset = str(num_subject) + "_" + roi
-        if label_list is None:
-            label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
-        else:
-            assert (label_list == np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True))
-        subjects.append(np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True))
-    classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
-    if verbose:
-        # TODO: print the information
-        print(classes)
-        print(classes_count)
-    return subjects, label_list, classes_idx
+    # new = cluster_based_on_correlation(ROI_signals, labels, 20)
