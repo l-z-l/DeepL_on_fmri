@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_MSDL')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='271_AAL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='tangent', discard_diagonal=True, vectorize=True)
 X = torch.as_tensor(connectivity_matrices, dtype=torch.float)

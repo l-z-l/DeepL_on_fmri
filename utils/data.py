@@ -252,7 +252,7 @@ def sym_normalize_adj(connectivity_matrices):
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
@@ -394,7 +394,7 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
 
     if save:
         save_path = save + "{}_{}_{}_{}_{}".format(len(new_subjects_list), stride_size, func, oneside_window_size,
-                                                         mask)
+                                                   mask)
         np.save(save_path, new_subjects_list)
         np.save(save_path + "_label", new_label_list)
 
@@ -449,7 +449,9 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
             selected = ROI_signals[i, :, roi_index_list]
             ret.append(np.mean(selected, axis=0))
         clustered_roi_signals.append(ret)
-    return np.array(clustered_roi_signals) #271*20*140
+    return np.array(clustered_roi_signals)  # 271*20*140
+
+
 ### Example usage
 # device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 # print("Available computing device: ", device)
@@ -495,3 +497,23 @@ if __name__ == "__main__":
 
     ###
     new = cluster_based_on_correlation(ROI_signals, labels, 20)
+
+
+def load_ensembled_data(dataDir='../data', roi_type=None, num_subject=273, verbose=False):
+    if roi_type is None:
+        roi_type = []
+    subjects = []
+    label_list = None
+    for roi in roi_type:
+        dataset = str(num_subject) + "_" + roi
+        if label_list is None:
+            label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
+        else:
+            assert (label_list == np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True))
+        subjects.append(np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True))
+    classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
+    if verbose:
+        # TODO: print the information
+        print(classes)
+        print(classes_count)
+    return subjects, label_list, classes_idx
