@@ -8,7 +8,7 @@ import os
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import train_loader, plot_train_result, num_correct, plot_confusion_matrix
+from utils.helper import train_loader, plot_train_result, num_correct, plot_evaluation_matrix
 from datetime import datetime
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
@@ -55,7 +55,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_de
 criterion = torch.nn.BCELoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(1000):
+for epoch in range(100):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -128,6 +128,7 @@ plot_train_result(history, save_path=save_path)
 model.eval()
 label_truth = []
 label_pred = []
+label_pred_raw = []
 with torch.no_grad():
     for val_batch_id, (val_x, val_y) in enumerate(
             train_loader(batch_size=128, mode='test', input=X, target=label)()):
@@ -136,8 +137,9 @@ with torch.no_grad():
         val_x, val_y = val_x.to(device), val_y.to(device)
 
         val_predict = model(val_x)
+        label_pred_raw.append(val_predict.cpu().numpy().tolist())
         pred = val_predict.max(dim=-1)[-1] if val_predict.shape[1] > 1 else val_predict > 0.5
 
         label_pred.append(pred.cpu().numpy().tolist())
 
-plot_confusion_matrix(label_truth, label_pred, save_path)
+plot_evaluation_matrix(label_truth, label_pred, label_pred_raw, save_path)

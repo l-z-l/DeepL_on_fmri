@@ -22,14 +22,15 @@ import seaborn as sns
 
 def functools_reduce_iconcat(a):
     return functools.reduce(operator.iconcat, a, [])
-def plot_confusion_matrix(label_truth, label_pred, save_path=None):
+def plot_evaluation_matrix(label_truth, label_pred, label_pred_raw, save_path=None):
     label_pred = functools_reduce_iconcat(label_pred)
     label_truth = functools_reduce_iconcat(label_truth)
+    label_pred_raw = functools_reduce_iconcat(label_pred_raw)
     # confusion matrix
     cm = confusion_matrix(label_truth, label_pred)
-    fpr, tpr, threshold = roc_curve(label_truth, label_pred)
+    fpr, tpr, threshold = roc_curve(label_truth, label_pred_raw)
     roc_auc = auc(fpr, tpr)
-    precision, recall, _ = precision_recall_curve(label_truth, label_pred)
+    precision, recall, _ = precision_recall_curve(label_truth, label_pred_raw)
     f1 = f1_score(label_truth, label_pred, average='weighted')
 
     ### PLOT confusion matrix
