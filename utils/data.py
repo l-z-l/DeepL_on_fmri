@@ -12,6 +12,7 @@ import torch
 from nilearn.connectome import ConnectivityMeasure
 from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
+from sklearn.cluster import KMeans
 
 
 def checkNone(matrix_list):
@@ -252,7 +253,7 @@ def sym_normalize_adj(connectivity_matrices):
         rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
-        d_inv_sqrt = np.power(rowsum, -0.5).flatten() # D^-0.5 116 * 1 tensor
+        d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
         d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
         d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
         adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
@@ -394,7 +395,7 @@ def augment_with_selection(oneside_window_size, subjects_list, label_list, strid
 
     if save:
         save_path = save + "{}_{}_{}_{}_{}".format(len(new_subjects_list), stride_size, func, oneside_window_size,
-                                                         mask)
+                                                   mask)
         np.save(save_path, new_subjects_list)
         np.save(save_path + "_label", new_label_list)
 
@@ -449,7 +450,9 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
             selected = ROI_signals[i, :, roi_index_list]
             ret.append(np.mean(selected, axis=0))
         clustered_roi_signals.append(ret)
-    return np.array(clustered_roi_signals) #271*20*140
+    return np.array(clustered_roi_signals)  # 271*20*140
+
+
 ### Example usage
 # device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 # print("Available computing device: ", device)
@@ -465,6 +468,84 @@ def cluster_based_on_correlation(ROI_signals, mask_label, n_clusters):
 # # Loading atlas data stored in 'labels'
 # atlas_labels = atlas['labels']
 # print(cluster_based_on_correlation(ROI_signals, atlas_labels, 20))
+
+
+def corr_of_corr_with_time(subjects_list, label_list, stride, window, k_cluster, len_atlas):
+    '''
+    So assume we have 271 subjects, 116 rois from atlas, 140 timeframes, 8 timeframe after data augmentation by window 100 stride 5.
+
+    Step 1: data augmentation with continous timeframes and setted window size;
+    Step 2: flatten to (271, (1/2) * 116 * 116), 8) connectomes, which is subjects*connectomes on time dynamics
+    Step 3: cluster based on 271 subejcts and group the about 7000 connections to 100 ish
+    Step 4: run correlation on (271, 100, 8), and get (271, 100, 100) then flatten to (271, (1/2*100*100)) as input to gcn
+    '''
+    ROI_signals, labels = augment_with_window(window, subjects_list, label_list, stride)
+    labels = [x if (x == "CN") else "CD" for x in labels]
+    cm = ConnectivityMeasure(kind='correlation')
+    num_subjects = len(label_list)
+
+    '''
+    Step 1
+    '''
+    connectivities_lists = []
+    flatten_many = []
+    s = 0
+    while s < len(labels) - num_subjects:  # loop over augmented subjects
+        connectivities_list = cm.fit_transform(ROI_signals[s:s + num_subjects])
+        connectivities_lists.append(connectivities_list)  # 8*(271*116*116) on window 100
+        # increment by 271 subjects, as we want to change the order of how we augmented
+        # we want it now each subjects have there consecutive corrs
+        s += num_subjects
+        '''
+        Step 2
+        '''
+        flatten_one = []
+        for i in range(num_subjects):  # 271
+            # take upper triangular for the correlation and do for each subject
+            flatten_one.append(list(connectivities_list[i][np.triu_indices(len_atlas)]))  # 271* upper(116*116)
+        flatten_many.append(flatten_one)  # 8 * 271 * upper(116*116)
+
+    flatten_many = np.asarray(flatten_many)
+    '''
+    Step 3
+    '''
+    avg_flats = np.mean(flatten_many, axis=0)  # 271*6786
+    kmeans = KMeans(n_clusters=k_cluster, random_state=0).fit(avg_flats.T)
+    '''
+    Step 4
+    '''
+    second_level = []
+    for t in range(len(flatten_many)):
+        inner_second_level = []
+        for s in range(len(flatten_many[t])):
+            cols = {"cluster": kmeans.labels_, "connectomes": flatten_many[t, s, :]}
+            temp = pd.DataFrame(cols)
+            # group connectomes by cluster labels
+            inner_second_level.append(np.asarray(temp.groupby("cluster")["connectomes"].mean()))
+        second_level.append(inner_second_level)
+    second_level = np.swapaxes(np.asarray(second_level), 0, 1)
+
+    second_corr_mat = cm.fit_transform(second_level)
+    print(second_corr_mat.shape)
+    retval = []
+    for i in range(num_subjects):
+        flat = list(second_corr_mat[i][np.triu_indices(k_cluster)])  # (271 6786)
+        retval.append(flat)
+
+    print(np.asarray(retval).shape)
+    return np.asarray(retval)  # (271, 1275)
+
+
+#### Example usage
+# stride = 5
+# window = 100
+# k_cluster = 50
+# len_atlas = 116
+# subjects_list = np.load('/content/drive/My Drive/data/ADNI_denoised/271_AAL.npy', allow_pickle=True)
+# label_list = np.load('/content/drive/My Drive/data/ADNI_denoised/271_AAL_label.npy', allow_pickle=True)
+# input = corr_of_corr_with_time(subjects_list, label_list, stride, window, k_cluster, len_atlas)
+#
+
 
 if __name__ == "__main__":
     ### LOAD data
