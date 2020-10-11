@@ -26,7 +26,7 @@ class SpatialTemporalCNN(nn.Module):
         )
         self.maxpool = nn.MaxPool2d(2, 2)
 
-        # xavier initialization
+        ### Weight initialization
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
                 xavier_normal_(m.weight,

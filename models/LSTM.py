@@ -6,36 +6,32 @@ from utils.config import args
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=48, hidden_layer_size=32, num_layers=1,
-                 output_size=1):
+    def __init__(self, input_size=48, hidden_dim=16, seq_len=140, num_layers=1,
+                 output_size=2):
         super().__init__()
-        self.hidden_layer_size = hidden_layer_size
+        self.hidden_layer_size = hidden_dim
 
-        self.lstm_1 = nn.LSTM(input_size, hidden_layer_size, num_layers, batch_first=True)
-        self.lstm_2 = nn.LSTM(hidden_layer_size, 2, num_layers, batch_first=True)
+        self.lstm_1 = nn.LSTM(input_size, hidden_dim, num_layers, batch_first=True)
+        self.lstm_2 = nn.LSTM(hidden_dim, 2, num_layers, batch_first=True)
         # self.lstm = tnn.LSTM(embedding_dim,hidden_dim,n_layer,dropout=drop_prob,batch_first=True,bidirectional=True,bias=True)
 
-        self.linear = nn.Linear(280, output_size)
+        self.linear = nn.Linear(seq_len*2, output_size)
 
         # self.hidden_cell = (torch.zeros(num_layers, 1, self.hidden_layer_size),
         #                     torch.zeros(num_layers, 1, self.hidden_layer_size))
 
         # self.log_softmax = nn.LogSoftmax(dim=1)
         self.CONV = nn.Sequential(
-            nn.Conv1d(hidden_layer_size, hidden_layer_size, kernel_size=2, padding=3),
+            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=2, padding=3),
             nn.ReLU(),
             nn.MaxPool1d(10)
             # nn.BatchNorm1d(hidden_layer_size)
         )
-        self.conv1 = nn.Conv1d(hidden_layer_size,hidden_layer_size, kernel_size=2, padding=3)
-        self.max = nn.MaxPool1d(10)
-
         self.sig = nn.Sigmoid()
 
     def forward(self, input_seq):
         ### 2 layer LSTM
-        lstm_out, (h, c) = self.lstm_1(input_seq)
-        lstm_out_1, (h, c) = self.lstm_2(lstm_out)
+        # lstm_out, (h, c) = self.lstm_1(input_seq)
         lstm_out, _ = self.lstm_1(input_seq)
         lstm_out_1, _ = self.lstm_2(lstm_out)
         # lstm_out, self.hidden_cell = self.lstm(input_seq.view(len(input_seq), 1, -1), self.hidden_cell)
@@ -65,7 +61,6 @@ class LSTM(nn.Module):
         # print(f"lstm_out2 shape {lstm_out.shape}")
 
         return output
-
 
     # Potential issue with VAE
         # Can't learn the representation to be classified
