@@ -73,7 +73,7 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
         - (n * nROI * nFeat torch.tensor) : the initial node embeddings
     '''
     ### load coordinates of mask
-    # coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
+    coordinate = torch.tensor(np.load(f'./data/{mask_coord}_coordinates.npy', allow_pickle=True), dtype=torch.float)
 
     ### node embeddings using graph local measures
     H = []
@@ -103,8 +103,8 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
         for key, val in graph_measure.items():
             vec.append(val)
         # add coordinates of the ROIs
-        # H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
-        H_i = torch.FloatTensor(vec).T
+        H_i = torch.cat((torch.FloatTensor(vec).T, coordinate), axis=1)
+        # H_i = torch.FloatTensor(vec).T
         H.append(H_i)
 
     return list_2_tensor(H)
@@ -260,7 +260,7 @@ def sym_normalize(adj):
     return sp.coo_matrix(adj)
 
 
-def sym_normalize_adj(connectivity_matrices):
+def sym_normalize_list(connectivity_matrices):
     '''
     Symmetrically normalize adjacency matrix.
     Params :
@@ -310,7 +310,7 @@ def chebyshev_polynomials(adj, k):
     """
     print("Calculating Chebyshev polynomials up to order {}...".format(k))
 
-    adj_normalized = sym_normalize_adj(adj)
+    adj_normalized = sym_normalize_list(adj)
     laplacian = sp.eye(adj.shape[0]) - adj_normalized
     largest_eigval, _ = eigsh(laplacian, 1, which='LM')
     scaled_laplacian = (2. / largest_eigval[0]) * laplacian - sp.eye(adj.shape[0])

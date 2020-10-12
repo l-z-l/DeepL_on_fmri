@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'MLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data/interpolation/MSDL'
 outdir = './outputs'

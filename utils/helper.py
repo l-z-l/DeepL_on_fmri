@@ -22,6 +22,7 @@ import seaborn as sns
 
 def functools_reduce_iconcat(a):
     return functools.reduce(operator.iconcat, a, [])
+
 def plot_evaluation_matrix(label_truth, label_pred, label_pred_raw, save_path=None):
     label_pred = functools_reduce_iconcat(label_pred)
     label_truth = functools_reduce_iconcat(label_truth)
