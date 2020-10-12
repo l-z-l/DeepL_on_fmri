@@ -82,12 +82,12 @@ def node_embed(correlation_matrices, mask_coord='MSDL', hand_crafted=True):
             # 1 node degrees
             "degree": bct.degrees_und(matrix),
             # 2 node strength
-            "node_strength": bct.strengths_und(matrix),
+            # "node_strength": bct.strengths_und(matrix),
             # 3 participation coefficient
             # 4 betweenness centrality
             "betweenness_centrality": bct.betweenness_bin(matrix) / ((len(matrix) - 1) * (len(matrix) - 2)),
             # 5 K-coreness centrality
-            "kcoreness_centrality": bct.kcoreness_centrality_bd(matrix)[0],
+            # "kcoreness_centrality": bct.kcoreness_centrality_bd(matrix)[0],
             # 6 subgraph centrality
             "subgraph_centrality": bct.subgraph_centrality(matrix),
             # 7 eigenvector centrality
@@ -246,11 +246,13 @@ def normalize(mx):
     Returns :
         - :return:
     '''
-    rowsum = np.array(mx.sum(0))
+    ### use mix max sc
+    rowsum = np.array(mx.sum(1))
     r_inv = np.power(rowsum, -1).flatten()
     r_inv[np.isinf(r_inv)] = 0.
     r_mat_inv = sp.diags(r_inv)
-    normalized_mx = r_mat_inv.dot(mx.T).T
+    normalized_mx = r_mat_inv.dot(mx)
+    # normalized_mx = r_mat_inv.dot(mx.T).T
     return normalized_mx
 
 
@@ -266,21 +268,24 @@ def normalize_features_list(mx_list):
     '''
     matrices = []
     for i, mx in enumerate(mx_list):
-        rowsum = np.array(mx.sum(0))
+        rowsum = np.array(mx.sum(1))
         r_inv = np.power(rowsum, -1).flatten()
         r_inv[np.isinf(r_inv)] = 0.
         r_mat_inv = sp.diags(r_inv)
-        mx = r_mat_inv.dot(mx.T).T
+        mx = r_mat_inv.dot(mx)
+        # mx = r_mat_inv.dot(mx.T).T
         matrices.append(torch.as_tensor(mx, dtype=torch.float))
     return list_2_tensor(matrices)
 
 
 # return tensor in coo matrix
 def sym_normalize(adj):
-    adj += sp.eye(adj.shape[0])  # A^hat = A + I
-    rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
+    # adj += sp.eye(adj.shape[0])  # A^hat = A + I
+    # rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
+
 
     adj = sp.coo_matrix(adj)
+    rowsum = np.array(adj.sum(1))
     d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
     d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix

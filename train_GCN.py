@@ -3,18 +3,16 @@ import random
 
 import bct
 import torch
-import matplotlib.pyplot as plt
 from sklearn.metrics import plot_confusion_matrix
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import SubsetRandomSampler
 from torch_geometric.data import Dataset
 from torch import nn
 from torch import optim
 
-from models.GNN import GNN, GNN_SAG
+from models.GNN import GNN, GNN_SAG, Hyper_GCN
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
-    normalize, sym_normalize, list_2_tensor
+    normalize, sym_normalize
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -23,7 +21,6 @@ from torch_geometric.data import Data, DataLoader
 from utils.config import args
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
-from torch_geometric.nn import GNNExplainer
 
 ##########################################################
 # %% Meta
@@ -52,59 +49,43 @@ label = torch.as_tensor(labels_index, dtype=torch.float)
 
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation')
 partial_corr = signal_to_connectivities(ROIs, kind='partial correlation')
-precision = signal_to_connectivities(ROIs, kind='precision')
+covariance = signal_to_connectivities(ROIs, kind='covariance')
 
 ### get features
 graphs = []
-node_embeddings = []
-scaler = MinMaxScaler(feature_range=(0, 1))
 for i, matrix in enumerate(connectivity_matrices):
     # node is not self connected
     # np.fill_diagonal(matrix, 0)
 
     ### THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
     absmx = abs(matrix)
-    percentile = np.percentile(absmx, 10)  # threshold 50 % of connections
+    percentile = np.percentile(absmx, 30)  # threshold 70 % of connections
     # mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
     mask = absmx < percentile
     # mask = (mean + 0.5 * std)
 
-    # apply mask to edge_attr
     matrix[mask] = 0
     partial_corr[i][mask] = 0
-    precision[i][mask] = 0
+    covariance[i][mask] = 0
 
-    ### convert to binary matrix
-    # made a distinct adj matrix, since connection weights are counted in edge attr
-    matrix[matrix != 0] = 1
-
-    ### edge_attr
+    ### edge_attr TODO: Edge normalizaiton
     corr = sp.coo_matrix(matrix)
     par_corr = sp.coo_matrix(partial_corr[i])
-    covar = sp.coo_matrix(precision[i])
+    covar = sp.coo_matrix(covariance[i])
     edge_attr = torch.from_numpy(np.vstack((corr.data, par_corr.data, covar.data)).transpose())
 
     ### node_embed
     x = node_embed([matrix], mask_coord='MSDL').squeeze()
-    # print(x[0]) # TODO: check later
-    # TODO: Node normalizaiton
-    node_embeddings.append(x)
-    # x = torch.from_numpy(normalize(x))
+    x = torch.from_numpy(normalize(x))
+
+    ### convert to 0 or 1 TODO: check order
+    matrix[matrix != 0] = 1
 
     ### normalise graph adj
     edge_index = sym_normalize(matrix)
     edge_index = torch.from_numpy(np.vstack((edge_index.row, edge_index.col))).long()
 
     graphs.append(Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=label[i:i + 1]))
-
-xs = torch.cat(node_embeddings, 0)
-xs = scaler.fit_transform(xs)
-xs = torch.tensor(xs.reshape((ROIs.shape[0], ROIs.shape[2], xs.shape[-1])), dtype=torch.float)
-
-# normalize edge
-for i, g in enumerate(graphs):
-    g.x = xs[i]
-
 
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
@@ -126,13 +107,13 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler, )
 ##########################################################
 print("--------> Using ", device)
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
-model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device)  #
+model = Hyper_GCN(num_features=x.shape[1], nhid=64, num_classes=2).to(device)  #
 
-optimizer = optim.Adam(model.parameters(), lr=0.0005)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 criterion = nn.CrossEntropyLoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(800):
+for epoch in range(1000):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -190,14 +171,9 @@ if SAVE:
     # save model
     torch.save(model, save_path + 'GCN.pth')
 
-# %%
-# node_idx = 10
-# explainer = GNNExplainer(model, epochs=1000)
-# node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, (data.edge_attr, data.batch))
-# ax, G = explainer.visualize_subgraph(node_idx, edge_index, edge_mask, y=data.y)# %% Plot result
-# plt.show()#########################################################
-
-# %%
+#########################################################
+# %% Plot result
+#########################################################
 plot_train_result(history, save_path=save_path)
 
 #########################################################
