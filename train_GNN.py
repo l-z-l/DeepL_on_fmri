@@ -35,7 +35,7 @@ connectivity_matrices, _ = threshold(connectivity_matrices)
 H_0 = torch.load(f"./data/{dataset}_node.pt")
 H_0 = torch.zeros((connectivity_matrices.shape[0], connectivity_matrices.shape[1], 20))
 
-sparse_adj_list = sym_normalize_adj(connectivity_matrices)
+sparse_adj_list = sym_normalize_list(connectivity_matrices)
 
 labels = [x if (x == "CN") else "CD" for x in labels]
 classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)

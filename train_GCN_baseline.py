@@ -74,12 +74,12 @@ for i, matrix in enumerate(connectivity_matrices):
     covar = sp.coo_matrix(covariance[i])
     edge_attr = torch.from_numpy(np.vstack((corr.data, par_corr.data, covar.data)).transpose())
 
-    ### convert to 0 or 1
-    matrix[matrix != 0] = 1
-
     ### node_embed
     x = node_embed([matrix], mask_coord='MSDL').squeeze()
     x = torch.from_numpy(normalize(x))
+
+    ### convert to 0 or 1 TODO: check order
+    matrix[matrix != 0] = 1
 
     ### normalise graph adj
     edge_index = sym_normalize(matrix)

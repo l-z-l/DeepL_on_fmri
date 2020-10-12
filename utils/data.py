@@ -218,12 +218,19 @@ def sparse_to_tuple(sparse_mx):
 
 
 def normalize(mx):
+    '''
+    Params :
+        - :param mx (np.ndarray) :  feature matrix (m, num_feat) e.g. (116, 11)
+    --------
+    Returns :
+        - :return:
+    '''
     rowsum = np.array(mx.sum(0))
     r_inv = np.power(rowsum, -1).flatten()
     r_inv[np.isinf(r_inv)] = 0.
     r_mat_inv = sp.diags(r_inv)
-    mx = r_mat_inv.dot(mx.T).T
-    return mx
+    normalized_mx = r_mat_inv.dot(mx.T).T
+    return normalized_mx
 
 
 def normalize_features_list(mx_list):
