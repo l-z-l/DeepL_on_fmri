@@ -151,6 +151,27 @@ def list_2_tensor(list_matrix, axis=0):
     return torch.stack([x for x in list_matrix], dim=axis)
 
 
+def load_ensembled_data(dataDir='../data', roi_type=None, num_subject=273, verbose=False):
+    if roi_type is None:
+        roi_type = []
+    subjects = []
+    label_list = None
+    for roi in roi_type:
+        dataset = str(num_subject) + "_" + roi
+        if label_list is None:
+            label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
+        else:
+            pass
+            # assert ((label_list == np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)).all())
+        subjects.append(np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True))
+    classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
+    if verbose:
+        # TODO: print the information
+        print(classes)
+        print(classes_count)
+    return subjects, label_list, classes_idx
+
+
 def load_fmri_data(dataDir='../data', dataset='271_AAL', label=None, verbose=False):
     '''
     Load the Saved 3D ROI signals
@@ -520,24 +541,3 @@ if __name__ == "__main__":
 
     ###
     # new = cluster_based_on_correlation(ROI_signals, labels, 20)
-
-
-def load_ensembled_data(dataDir='../data', roi_type=None, num_subject=273, verbose=False):
-    if roi_type is None:
-        roi_type = []
-    subjects = []
-    label_list = None
-    for roi in roi_type:
-        dataset = str(num_subject) + "_" + roi
-        if label_list is None:
-            label_list = np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)
-        else:
-            pass
-            # assert ((label_list == np.load(dataDir + "/" + dataset + "_label.npy", allow_pickle=True)).all())
-        subjects.append(np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True))
-    classes, classes_idx, classes_count = np.unique(label_list, return_inverse=True, return_counts=True)
-    if verbose:
-        # TODO: print the information
-        print(classes)
-        print(classes_count)
-    return subjects, label_list, classes_idx
