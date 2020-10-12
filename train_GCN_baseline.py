@@ -14,7 +14,7 @@ from torch import optim
 
 from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
-    normalize, sym_normalize, list_2_tensor
+    row_normalize, sym_normalize, list_2_tensor, bingge_norm_adjacency
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -28,11 +28,11 @@ from torch_geometric.nn import GNNExplainer
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = False
+SAVE = True
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
-datadir = './data'
+datadir = './data/'
 outdir = './outputs'
-dataset_name = '273_MSDL'
+dataset_name = '271_100_5_sliced_AAL'
 if SAVE:
     save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
     if not os.path.isdir(save_path):
@@ -64,7 +64,7 @@ for i, matrix in enumerate(connectivity_matrices):
 
     ### THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
     absmx = abs(matrix)
-    percentile = np.percentile(absmx, 10)  # threshold 50 % of connections
+    percentile = np.percentile(absmx, 95)  # threshold 50 % of connections
     # mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
     mask = absmx < percentile
     # mask = (mean + 0.5 * std)
@@ -85,14 +85,14 @@ for i, matrix in enumerate(connectivity_matrices):
     edge_attr = torch.from_numpy(np.vstack((corr.data, par_corr.data, covar.data)).transpose())
 
     ### node_embed
-    x = node_embed([matrix], mask_coord='MSDL').squeeze()
+    x = node_embed([matrix], mask_coord='AAL').squeeze()
     # print(x[0]) # TODO: check later
     # TODO: Node normalizaiton
     node_embeddings.append(x)
     # x = torch.from_numpy(normalize(x))
 
     ### normalise graph adj
-    edge_index = sym_normalize(matrix)
+    edge_index = bingge_norm_adjacency(matrix)
     edge_index = torch.from_numpy(np.vstack((edge_index.row, edge_index.col))).long()
 
     graphs.append(Data(x=x, edge_index=edge_index, edge_attr=edge_attr, y=label[i:i + 1]))
@@ -103,8 +103,7 @@ xs = torch.tensor(xs.reshape((ROIs.shape[0], ROIs.shape[2], xs.shape[-1])), dtyp
 
 # normalize edge
 for i, g in enumerate(graphs):
-    g.x = xs[i]
-
+    g.x = xs[i] # + int(label[i]) * 1000
 
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
@@ -119,20 +118,20 @@ train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
 
 train_loader = DataLoader(graphs, batch_size=64, sampler=train_sampler)
-test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler, )
+test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 
 ##########################################################
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=2).to(device)
-model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=2).to(device)  #
+model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=1).to(device)  #
 
-optimizer = optim.Adam(model.parameters(), lr=0.0005)
-criterion = nn.CrossEntropyLoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_decay)
+criterion = nn.BCEWithLogitsLoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(800):
+for epoch in range(1000):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -145,7 +144,7 @@ for epoch in range(800):
         predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
 
         # Compute the loss
-        loss = criterion(predict.squeeze(), data.y.long())
+        loss = criterion(predict.squeeze(), data.y)
         loss.backward()
         optimizer.step()
 
@@ -166,7 +165,7 @@ for epoch in range(800):
             val_correct += num_correct(val_predict, test_data.y)
 
             val_total += len(test_data.y)
-            val_loss += criterion(val_predict.squeeze(), test_data.y.long()).item()
+            val_loss += criterion(val_predict.squeeze(), test_data.y).item()
 
     test_loss_list.append(val_loss / val_total)
     testing_acc.append(int(val_correct) / val_total * 100)

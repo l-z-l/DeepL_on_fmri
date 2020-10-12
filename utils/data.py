@@ -238,7 +238,7 @@ def sparse_to_tuple(sparse_mx):
     return sparse_mx
 
 
-def normalize(mx):
+def row_normalize(mx):
     '''
     Params :
         - :param mx (np.ndarray) :  feature matrix (m, num_feat) e.g. (116, 11)
@@ -277,20 +277,28 @@ def normalize_features_list(mx_list):
         matrices.append(torch.as_tensor(mx, dtype=torch.float))
     return list_2_tensor(matrices)
 
+def bingge_norm_adjacency(adj):
+    # A' = I + (D + I)^-1/2 * (A + I) * (D + I)^-1/2
+   adj = adj + sp.eye(adj.shape[0])
+   adj = sp.coo_matrix(adj)
+   row_sum = np.array(adj.sum(1))
+   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+   return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt) + sp.eye(adj.shape[0])).tocoo()
 
 # return tensor in coo matrix
 def sym_normalize(adj):
     # adj += sp.eye(adj.shape[0])  # A^hat = A + I
     # rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
 
-
     adj = sp.coo_matrix(adj)
     rowsum = np.array(adj.sum(1))
     d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor
     d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
-    adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt)  # .tocsr() # D^-0.5AD^0.5
-    return sp.coo_matrix(adj)
+    adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()  # .tocsr() # D^-0.5AD^0.5
+    return adj# sp.coo_matrix(adj)
 
 
 def sym_normalize_list(connectivity_matrices):

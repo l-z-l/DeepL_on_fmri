@@ -13,6 +13,7 @@ from torch.nn import Linear
 import torch.nn.functional as F
 from torch_geometric.nn import global_max_pool, global_mean_pool
 from torch_geometric.nn import GraphConv, SAGPooling, JumpingKnowledge, BatchNorm, HypergraphConv, GATConv
+from torch_geometric.utils import dropout_adj
 
 
 class Hyper_GCN(torch.nn.Module):
@@ -66,7 +67,7 @@ class Hyper_GCN(torch.nn.Module):
         return self.lin3(x)
 
 class GNN_SAG(torch.nn.Module):
-    def __init__(self, num_features, nhid, num_classes=2, pooling_ratio=0.5, dropout_ratio=0.3):
+    def __init__(self, num_features, nhid, num_classes=2, pooling_ratio=0.5, dropout_ratio=0.2):
         super(GNN_SAG, self).__init__()
         self.num_features = num_features
         self.nhid = nhid
@@ -95,19 +96,25 @@ class GNN_SAG(torch.nn.Module):
     def forward(self, x, edge_index, edge_attr, batch):
         # 1st layer
         x = F.relu(self.conv1(x, edge_index))
+        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=0.5, training=self.training)
         x = self.bn1(x)
         x, edge_index, edge_attr, batch, _, _ = self.pool1(x, edge_index, edge_attr, batch)
         x1 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
+
         # 2nd layer
         x = F.relu(self.conv2(x, edge_index))
+        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=0.5, training=self.training)
         x = self.bn2(x)
         x, edge_index, edge_attr, batch, _, _ = self.pool2(x, edge_index, edge_attr, batch)
         x2 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
+
         # 3rd layer
         x = F.relu(self.conv3(x, edge_index))
+        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=0.5, training=self.training)
         x = self.bn3(x)
         x, edge_index, edge_attr, batch, _, _ = self.pool3(x, edge_index, edge_attr, batch)
         x3 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
+
         # concat
         x = x1 + x2 + x3
         # fully connected MLP

@@ -12,7 +12,7 @@ from torch import optim
 
 from models.GNN import GNN, GNN_SAG, Hyper_GCN
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
-    normalize, sym_normalize
+    row_normalize, sym_normalize
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -76,7 +76,7 @@ for i, matrix in enumerate(connectivity_matrices):
 
     ### node_embed
     x = node_embed([matrix], mask_coord='MSDL').squeeze()
-    x = torch.from_numpy(normalize(x))
+    x = torch.from_numpy(row_normalize(x))
 
     ### convert to 0 or 1 TODO: check order
     matrix[matrix != 0] = 1
