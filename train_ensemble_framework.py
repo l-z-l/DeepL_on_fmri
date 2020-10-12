@@ -4,47 +4,46 @@ from torch import optim
 from torch.nn import functional as F
 from torch.autograd import Variable
 import numpy as np
-
+import torch.utils.data as data_utils
 from utils.data import *
 from models.MLP import Linear
 from models.ensemble import Ensemblers
-from utils.config import args
-from utils.helper import train_vec_loader
-
-from sklearn.linear_model import Lasso
-from sklearn.svm import LinearSVC
-from sklearn.metrics import accuracy_score
+# datasets
+from utils.datasets import ConnectivityDatasets
+from torch.utils.data import DataLoader
 # plot
 import matplotlib.pyplot as plt
 
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 
-# data loader
-ROIs, labels, labels_index = load_ensembled_data(dataDir='data/',
-                                                 roi_type=["Havard_Oxford",
-                                                           "ICA_200_n50",
-                                                           "MSDL_label",
-                                                           "Ward_160n50"])
-
-X_list = []
-for item in ROIs:
-    X_list.append(
-        torch.as_tensor(
-            signal_to_connectivities(item,
-                                     kind='tangent',
-                                     discard_diagonal=True,
-                                     vectorize=True)))
-labels = [x if (x == "CN") else "CD" for x in labels]
-classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
-label = torch.as_tensor(labels_index, dtype=torch.float)
+# load the data
+roi_types = ["Havard_Oxford",
+             "ICA_200_n50",
+             "MSDL"]
+dataset = ConnectivityDatasets('data/',
+                               roi_type=roi_types,
+                               num_subject=273)
+train_loader = DataLoader(dataset, batch_size=1, shuffle=True, num_workers=4)
 
 # initialise models
 models = []
-for X in X_list:
-    model = Linear(X.shape[1], 1)
+for s in dataset.shape:
+    model = Linear(s, 1)
     model.to(device)
     models.append(model)
 ensembler = Ensemblers(1, 1, len(models))
-for epoch in range(15000):
-    X = torch.cat([models[i](X_list[i]) for i in range(0, len(X_list))], dim=0)
-    ensembler(X)
+ensembler.to(device)
+
+for epoch in range(2):
+    total = 0
+    correct = 0
+    for batch_id, (data, target) in enumerate(train_loader):
+        output = [models[i](data[i]) for i in range(len(data))]
+        output = ensembler(torch.reshape(torch.cat(output), (1, 3)))
+        loss = F.binary_cross_entropy(output, target)
+        pred = (output >= 0.5).float()
+        correct += (pred == target).float().sum()
+        total += target.size()[0]
+        accuracy = 100 * correct / total
+        print('ep:%5d loss: %6.4f acc: %5.2f' %
+              (epoch, loss.item(), accuracy))

@@ -1,10 +1,5 @@
-import torch, math
+import torch
 from torch import nn
-from torch.nn import functional as F
-from utils.helper import sparse_dropout, dot
-from utils.config import args
-from torch.nn.init import xavier_normal_
-from utils.data import list_2_tensor
 
 
 class Linear(nn.Module):
