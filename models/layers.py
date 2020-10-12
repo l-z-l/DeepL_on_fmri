@@ -4,9 +4,54 @@ from torch.nn import functional as F
 from utils.helper import sparse_dropout, dot
 from utils.config import args
 from torch.nn.init import xavier_normal_
+from utils.data import list_2_tensor
+
+
+class AvgReadout(nn.Module):
+    def __init__(self):
+        super(AvgReadout, self).__init__()
+
+    def forward(self, seq, msk):
+        if msk is None:
+            return torch.mean(seq, 1)
+        else:
+            msk = torch.unsqueeze(msk, -1)
+            return torch.sum(seq * msk, 1) / torch.sum(msk)
+
+
+
+class GCN(nn.Module):
+    def __init__(self, in_ft, out_ft, act, bias=True):
+        super(GCN, self).__init__()
+        self.fc = nn.Linear(in_ft, out_ft, bias=False)
+        self.act = nn.PReLU() if act == 'prelu' else act
+
+        if bias:
+            self.bias = nn.Parameter(torch.FloatTensor(out_ft))
+            self.bias.data.fill_(0.0)
+        else:
+            self.register_parameter('bias', None)
+
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                torch.nn.init.xavier_normal_(m.weight.data)
+                if m.bias is not None:
+                    m.bias.data.fill_(0.0)
+
+    # Shape of seq: (batch, nodes, features)
+    def forward(self, seq, adj, sparse=False):
+        seq_fts = self.fc(seq)
+        if sparse:
+            out = torch.unsqueeze(torch.spmm(adj, torch.squeeze(seq_fts, 0)), 0)
+        else:
+            out = torch.bmm(adj, seq_fts)
+        if self.bias is not None:
+            out += self.bias
+
+        return self.act(out)
 
 class GraphConv(nn.Module):
-    def __init__(self, input_dim, output_dim, num_features_nonzero,
+    def __init__(self, input_dim, output_dim,
                  dropout=0.,
                  is_sparse_inputs=False,
                  activation=F.relu,
@@ -18,7 +63,9 @@ class GraphConv(nn.Module):
         self.activation = activation
         self.is_sparse_inputs = is_sparse_inputs
         self.featureless = featureless
-        self.num_features_nonzero = num_features_nonzero
+
+        self.weight = nn.Parameter(torch.randn(input_dim, output_dim))
+        self.bias = nn.Parameter(torch.zeros(output_dim))
 
         ### weight initialisation
         if init == 'xavier':
@@ -39,36 +86,79 @@ class GraphConv(nn.Module):
         else:
             raise NotImplementedError
 
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' \
-               + str(self.input_dim) + ' -> ' \
-               + str(self.output_dim) + ')'
-
     def forward(self, inputs):
-        # print('inputs:', inputs)
-        x, support = inputs
+        x, adj = inputs
 
-        if self.training and self.is_sparse_inputs:
-            x = sparse_dropout(x, self.dropout, self.num_features_nonzero)
-        elif self.training:
+        if self.training:
             x = F.dropout(x, self.dropout)
 
         # convolve
-        if not self.featureless:  # if it has features x
-            if self.is_sparse_inputs:
-                xw = torch.sparse.mm(x, self.weight)
+        out_list = []
+        for i, mx in enumerate(x):
+            if not self.featureless:  # if it has features x
+                if self.is_sparse_inputs:
+                    # print()
+                    xw = torch.sparse.mm(mx, self.weight)
+                else:
+                    xw = torch.mm(mx, self.weight)  # (20, 116, 16) (116, 2)  -> (20, 116, 2)
             else:
-                xw = torch.mm(x, self.weight)
-        else:
-            # initial pass
-            xw = self.weight
+                # initial pass
+                xw = self.weight
 
-        out = torch.sparse.mm(support, xw)
+            out = torch.sparse.mm(adj[i], xw)  # (116, 116)  (20, 116, out_dim) -> (20, 116, out_dim)
+            out_list.append(out)
 
-        if self.bias is not None:
-            out += self.bias
+        # if self.bias is not None:
+        #     out += self.bias
 
-        return self.activation(out), support
+        out_list = list_2_tensor(out_list)
+
+        return self.activation(out_list), adj
+
+class Conv(nn.Module):
+    '''Downsampling block'''
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0):
+        super(Conv,self).__init__()
+
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
+            nn.BatchNorm2d(out_channels),
+            nn.Dropout(0.1),
+            nn.ReLU()
+        )
+    def forward(self, x):
+        return self.conv(x)
+
+class FactorizedConvolution(nn.Module):
+    """
+    4 layers,
+    1x1, 1x3, 3x1, 1x1, which reduces half of the direct convolution parameters
+    """
+
+    def __init__(self, input_dim=1, output_dim=1, channel_dim=32, bottle_neck=True):
+        super(FactorizedConvolution, self).__init__()
+        layers = [Conv(input_dim, channel_dim, 1, 1),
+                  Conv(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                  Conv(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
+                  Conv(channel_dim, output_dim, 1, stride=1)
+                  ]
+        if bottle_neck == False:
+            layers = [nn.Conv2d(input_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
+                      nn.ReLU(),
+                      nn.Conv2d(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0))
+                      ]
+        self.identity_match_layer = nn.Conv2d(input_dim, output_dim, 1, 1)
+        self.layers = nn.Sequential(*layers)
+        self.relu = nn.ReLU()
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+
+    def forward(self, x):
+        hidden = self.layers(x)
+        if self.input_dim != self.output_dim:
+            x = self.identity_match_layer(x)
+        x = self.relu(x + hidden)  # residual skip connection
+        return x
 
 
 class GraphAttention(nn.Module):
@@ -86,13 +176,13 @@ class GraphAttention(nn.Module):
 
         self.W = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(in_features, out_features).type(
             torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor), gain=np.sqrt(2.0)),
-                              requires_grad=True)
+            requires_grad=True)
         self.a1 = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(out_features, 1).type(
             torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor), gain=np.sqrt(2.0)),
-                               requires_grad=True)
+            requires_grad=True)
         self.a2 = nn.Parameter(nn.init.xavier_normal_(torch.Tensor(out_features, 1).type(
             torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor), gain=np.sqrt(2.0)),
-                               requires_grad=True)
+            requires_grad=True)
 
         self.leakyrelu = nn.LeakyReLU(self.alpha)
 
