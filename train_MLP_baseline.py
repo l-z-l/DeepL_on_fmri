@@ -8,8 +8,10 @@ import os
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import train_loader, plot_train_result, num_correct, plot_evaluation_matrix
+from utils.helper import plot_train_result, num_correct, plot_evaluation_matrix
 from datetime import datetime
+from utils.datasets import DatasetFactory
+from torch.utils.data import DataLoader
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
 from sklearn.metrics import accuracy_score
@@ -21,9 +23,9 @@ import matplotlib.pyplot as plt
 ###############train_test_split###########################
 SAVE = False
 MODEL_NANE = f'MLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
-datadir = './data/interpolation/MSDL'
+datadir = './data/augmented/'
 outdir = './outputs'
-dataset_name = '2730_10_MAX_0_MSDL'
+dataset_name = '271_100_5_sliced_AAL'
 if SAVE:
     save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
     if not os.path.isdir(save_path):
@@ -34,24 +36,19 @@ else:
 # %% Load Data
 ###############train_test_split###########################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
-ROIs, labels, labels_index = load_fmri_data(dataDir=datadir, dataset=dataset_name)
-# convert to functional connectivity
-connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
-X = torch.as_tensor(connectivity_matrices, dtype=torch.float)
-
-labels = [x if (x == "CN") else "CD" for x in labels]
-classes, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
-label = torch.as_tensor(labels_index, dtype=torch.float)
-
+train_dataset, test_dataset = DatasetFactory.create_train_test_connectivity_datasets_from_path(
+    train_path="data/augmented/2070_train_271_AAL_org_100_window_5_stride",
+    test_path="data/augmented/369_train_271_AAL_org_100_window_5_stride")
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
 ##########################################################
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
-model = Linear(X.shape[1], 1)
+model = Linear(len(train_dataset[0][0]), 1)
 model.to(device)
 # optimizer = optim.SGD(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
-
 criterion = torch.nn.BCELoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
@@ -60,8 +57,7 @@ for epoch in range(100):
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
 
-    for batch_id, (train_x, train_y) in enumerate(
-            train_loader(batch_size=64, mode='train', input=X, target=label)()):
+    for batch_id, (train_x, train_y) in enumerate(train_loader):
         # Preparing Data
         train_x, train_y = train_x.to(device), train_y.to(device)
 
@@ -86,10 +82,8 @@ for epoch in range(100):
     ### test ###
     model.eval()
     with torch.no_grad():
-        for val_batch_id, (val_x, val_y) in enumerate(
-                train_loader(batch_size=128, mode='test', input=X, target=label)()):
+        for val_batch_id, (val_x, val_y) in enumerate(test_loader):
             val_x, val_y = val_x.to(device), val_y.to(device)
-
             val_predict = model(val_x)
             val_correct += num_correct(val_predict, val_y)
 
@@ -99,7 +93,7 @@ for epoch in range(100):
     test_loss_list.append(val_loss / val_total)
     testing_acc.append(int(val_correct) / val_total * 100)
 
-    if epoch % 50 == 0:
+    if epoch % 20 == 0:
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
 
@@ -130,8 +124,7 @@ label_truth = []
 label_pred = []
 label_pred_raw = []
 with torch.no_grad():
-    for val_batch_id, (val_x, val_y) in enumerate(
-            train_loader(batch_size=128, mode='test', input=X, target=label)()):
+    for val_batch_id, (val_x, val_y) in enumerate(test_loader):
         label_truth.append(val_y.numpy().tolist())
 
         val_x, val_y = val_x.to(device), val_y.to(device)
