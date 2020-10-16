@@ -14,6 +14,7 @@ from scipy.cluster.hierarchy import linkage, fcluster
 from scipy.spatial.distance import squareform
 from sklearn.metrics import roc_curve
 from sklearn.cluster import KMeans
+from torch.utils.data import TensorDataset
 
 
 def checkNone(matrix_list):
@@ -277,15 +278,17 @@ def normalize_features_list(mx_list):
         matrices.append(torch.as_tensor(mx, dtype=torch.float))
     return list_2_tensor(matrices)
 
+
 def bingge_norm_adjacency(adj):
     # A' = I + (D + I)^-1/2 * (A + I) * (D + I)^-1/2
-   adj = adj + sp.eye(adj.shape[0])
-   adj = sp.coo_matrix(adj)
-   row_sum = np.array(adj.sum(1))
-   d_inv_sqrt = np.power(row_sum, -0.5).flatten()
-   d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
-   d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
-   return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt) + sp.eye(adj.shape[0])).tocoo()
+    adj = adj + sp.eye(adj.shape[0])
+    adj = sp.coo_matrix(adj)
+    row_sum = np.array(adj.sum(1))
+    d_inv_sqrt = np.power(row_sum, -0.5).flatten()
+    d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
+    d_mat_inv_sqrt = sp.diags(d_inv_sqrt)
+    return (d_mat_inv_sqrt.dot(adj).dot(d_mat_inv_sqrt) + sp.eye(adj.shape[0])).tocoo()
+
 
 # return tensor in coo matrix
 def sym_normalize(adj):
@@ -298,7 +301,7 @@ def sym_normalize(adj):
     d_inv_sqrt[np.isinf(d_inv_sqrt)] = 0.
     d_mat_inv_sqrt = sp.diags(d_inv_sqrt)  # D^-0.5 -> diagnol matrix
     adj = adj.dot(d_mat_inv_sqrt).transpose().dot(d_mat_inv_sqrt).tocoo()  # .tocsr() # D^-0.5AD^0.5
-    return adj# sp.coo_matrix(adj)
+    return adj  # sp.coo_matrix(adj)
 
 
 def sym_normalize_list(connectivity_matrices):
@@ -375,6 +378,69 @@ def chebyshev_polynomials(adj, k):
 # DATA augment related functions
 #
 ######################################
+
+
+def create_train_test_augmentation(data_dir='data',
+                                   dataset='271_AAL',
+                                   window_size=100,
+                                   stride_size=5,
+                                   test_size=0.15,
+                                   verbose=True,
+                                   save_path=None):
+    """
+        sliding window method
+        :param data_dir: data directory path
+        :param window_size: the actual window size
+        :param dataset: name of the dataset, eg:'271_AAL'
+        :param stride_size: skip number of frames
+        :param test_size: portion of the test size <= 1
+        :param verbose: summary of the result
+        :param save_path: if == None, the result wont be saved
+        :return: new augmented train subjects, train labels, test subjects, test labels
+    """
+    subject = np.load(data_dir + "/" + dataset + ".npy", allow_pickle=True)
+    label = np.load(data_dir + "/" + dataset + "_label.npy", allow_pickle=True)
+    train_idx = int(subject.shape[0] * (1 - test_size))
+
+    train_subject = np.empty((0, window_size, subject.shape[2]))
+    train_label = np.empty((0))
+    test_subject = np.empty((0, window_size, subject.shape[2]))
+    test_label = np.empty((0))
+
+    for i in range(0, subject.shape[1] - window_size + 1, stride_size):
+        train_subject = np.append(train_subject, subject[:train_idx, i:(i + window_size), :], axis=0)
+        train_label = np.append(train_label, label[:train_idx])
+        test_subject = np.append(test_subject, subject[train_idx:, i:(i + window_size), :], axis=0)
+        test_label = np.append(test_label, label[train_idx:])
+    if verbose:
+        print("Train subjects: 0 ~ " + str(train_idx - 1))
+        print("Test subjects: " + str(train_idx) + " ~ " + str(subject.shape[0]))
+        print("# of train after augmentation: " + str(len(train_subject)))
+        print("# of test after augmentation: " + str(len(test_subject)))
+        print("# of total: " + str(len(train_subject) + len(test_subject)))
+        print("Train shape", end='')
+        print(train_subject.shape)
+        print("Test shape", end='')
+        print(test_subject.shape)
+        pass
+    if save_path is not None:
+        np.save(save_path + "/{}_train_{}_org_{}_window_{}_stride.npy".format(len(train_subject), dataset, window_size,
+                                                                              stride_size),
+                train_subject)
+        np.save(
+            save_path + "/{}_train_{}_org_{}_window_{}_stride_label.npy".format(len(train_subject), dataset,
+                                                                                window_size,
+                                                                                stride_size),
+            train_label)
+        np.save(save_path + "/{}_test_{}_org_{}_window_{}_stride.npy".format(len(test_subject), dataset, window_size,
+                                                                             stride_size),
+                test_subject)
+        np.save(
+            save_path + "/{}_test_{}_org_{}_window_{}_stride_label.npy".format(len(test_subject), dataset, window_size,
+                                                                               stride_size),
+            test_label)
+    return train_subject, train_label, test_subject, test_label
+
 
 def augment_with_window(window_size, subjects_list, label_list, stride_size=1):
     '''
