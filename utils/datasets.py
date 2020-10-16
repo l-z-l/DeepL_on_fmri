@@ -21,6 +21,22 @@ class TensorFactory:
 # factory for dataset
 class DatasetFactory:
     @staticmethod
+    def create_train_test_roi_signal_datasets_from_subject(train_subject, train_label, test_subject, test_label):
+        return TensorDataset(torch.as_tensor(train_subject, dtype=torch.float),
+                             TensorFactory.create_label_data(train_label)), \
+               TensorDataset(torch.as_tensor(test_subject, dtype=torch.float),
+                             TensorFactory.create_label_data(test_label))
+
+    @staticmethod
+    def create_train_test_roi_signal_datasets_from_path(train_path, test_path):
+        train_subject = np.load(train_path + ".npy", allow_pickle=True)
+        train_label = np.load(train_path + "_label.npy", allow_pickle=True)
+        test_subject = np.load(test_path + ".npy", allow_pickle=True)
+        test_label = np.load(test_path + "_label.npy", allow_pickle=True)
+        return DatasetFactory.create_train_test_roi_signal_datasets_from_subject(train_subject, train_label,
+                                                                                 test_subject, test_label)
+
+    @staticmethod
     def create_train_test_connectivity_datasets_from_subject(train_subject, train_label, test_subject, test_label):
         subjects = np.concatenate([train_subject, test_subject], axis=0)
         train_idx = len(train_subject)
@@ -47,6 +63,50 @@ class DatasetFactory:
         # merge train and test to compute connecivity matrix
         return DatasetFactory.create_train_test_connectivity_datasets_from_subject(train_subject, train_label,
                                                                                    test_subject, test_label)
+
+
+#
+class RoiSignalDataset(Dataset):
+    def __init__(self, dataDir='../data', dataset="MSDL"):
+        # subjects and labels
+        self._subjects = torch.as_tensor(np.load(dataDir + "/" + dataset + ".npy", allow_pickle=True),
+                                         dtype=torch.float)
+        self._labels = TensorFactory.create_label_data_from_path(dataDir + "/" + dataset + "_label.npy")
+
+    def __getitem__(self, item):
+        return self._subjects[item], self._labels[item]
+
+    def __len__(self):
+        return len(self._labels)
+
+    @property
+    def labels(self):
+        return self._labels
+
+
+class RoiSignalDatasets(Dataset):
+    def __init__(self, dataDir='../data', datasets=None):
+        if datasets is None:
+            datasets = ['MSDL']
+        if len(datasets) == 0:
+            raise ValueError("invalid roi types")
+        self.datasets = [RoiSignalDataset(dataDir, dataset) for dataset in datasets]
+        length = len(self.datasets[0])
+        # length check
+        for i in range(1, len(self.datasets)):
+            assert (len(self.datasets[i]) == len(self.datasets[i - 1]))
+        # label check: make sure all labels are consistent
+        for i in range(0, length):
+            for j in range(1, len(self.datasets)):
+                assert (self.datasets[j][i][1] == self.datasets[j - 1][i][1])
+
+    def __getitem__(self, item):
+        subjects = [dataset[item][0] for dataset in self.datasets]
+        label = self.datasets[0][item][1]
+        return subjects, label
+
+    def __len__(self):
+        return len(self.datasets[0])
 
 
 # read the roi data, and then convert to connectivity matrix
