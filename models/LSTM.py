@@ -6,30 +6,27 @@ from utils.config import args
 
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=48, hidden_dim=16, seq_len=140, num_layers=1,
+    def __init__(self, input_size=48, hidden_dim=64, seq_len=140, num_layers=1,
                  output_size=2):
         super().__init__()
         self.hidden_layer_size = hidden_dim
 
-        self.lstm_1 = nn.LSTM(input_size, hidden_dim, num_layers, batch_first=True)
-        self.lstm_2 = nn.LSTM(hidden_dim, 2, num_layers, batch_first=True)
-        # self.lstm = tnn.LSTM(embedding_dim,hidden_dim,n_layer,dropout=drop_prob,batch_first=True,bidirectional=True,bias=True)
-
-        self.linear = nn.Linear(seq_len*2, output_size)
-
+        self.lstm_1 = nn.LSTM(input_size, hidden_dim, num_layers, dropout=0.5, batch_first=True)
+        self.lstm_2 = nn.LSTM(hidden_dim, hidden_dim, num_layers, dropout=0.5, batch_first=True)
+        self.linear = nn.Linear(hidden_dim, output_size)
         # self.hidden_cell = (torch.zeros(num_layers, 1, self.hidden_layer_size),
         #                     torch.zeros(num_layers, 1, self.hidden_layer_size))
 
-        # self.log_softmax = nn.LogSoftmax(dim=1)
         self.CONV = nn.Sequential(
             nn.Conv1d(hidden_dim, hidden_dim, kernel_size=2, padding=3),
             nn.ReLU(),
-            nn.MaxPool1d(10)
+            nn.MaxPool1d(kernel_size=seq_len//10),
+            nn.Dropout()
             # nn.BatchNorm1d(hidden_layer_size)
         )
-        self.sig = nn.Sigmoid()
 
     def forward(self, input_seq):
+        '''
         ### 2 layer LSTM
         # lstm_out, (h, c) = self.lstm_1(input_seq)
         lstm_out, _ = self.lstm_1(input_seq)
@@ -47,16 +44,16 @@ class LSTM(nn.Module):
         output = self.linear(output)
         output = self.sig(output)
         # output, _ = torch.max(lstm_out, 1)
+        '''
         ##### CNN LSTM
-        # lstm_out, (h, c) = self.lstm_1(input_seq)
-        # lstm_out = lstm_out.permute(0, 2, 1)
-        # output = self.CONV(lstm_out)
-        # output = torch.max(output, 2)[0]  # global max for CNN
-        # output = self.linear(output)
-        # output = self.sig (output)
+        lstm_out, (h, c) = self.lstm_1(input_seq)
+        lstm_out, _ = self.lstm_2(lstm_out)
+        lstm_out = lstm_out.permute(0, 2, 1)
+        output = self.CONV(lstm_out)
+        output = torch.max(output, 2)[0]  # global max for CNN
+        output = self.linear(output)
 
-        # Global Max pooling
-
+        ### Global Max pooling
         # output = self.sig(output)
         # print(f"lstm_out2 shape {lstm_out.shape}")
 

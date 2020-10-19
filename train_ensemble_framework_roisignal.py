@@ -28,6 +28,7 @@ test_datasets = RoiSignalDatasets(dataDir='data/augmented', datasets=test_datase
 train_datasets = RoiSignalDatasets(dataDir='data/augmented', datasets=train_datasets)
 train_loader = DataLoader(train_datasets, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_datasets, batch_size=64, shuffle=True)
+
 # initialise models
 models = []
 for s in train_datasets[0][0]:
@@ -37,6 +38,7 @@ for s in train_datasets[0][0]:
 ensemble_layer = Ensemblers(1, 1, len(models))
 ensemble_layer.to(device)
 
+optimizer = optim.Adam(model.parameters(), lr=5e-4, weight_decay=5e-4)
 for epoch in range(2):
     total = 0
     correct = 0
@@ -46,10 +48,12 @@ for epoch in range(2):
 
         output = ensemble_layer(torch.reshape(torch.cat(output), (1, len(models))))
         # delete from here
-        loss = F.binary_cross_entropy(output, target)
+        loss = F.binary_cross_entropy_with_logits(output, target)
         pred = (output >= 0.5).float()
         correct += (pred == target).float().sum()
         total += target.size()[0]
         accuracy = 100 * correct / total
+
         print('ep:%5d loss: %6.4f acc: %5.2f' %
               (epoch, loss.item(), accuracy))
+

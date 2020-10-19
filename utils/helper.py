@@ -89,7 +89,7 @@ def train_loader(batch_size, input, target, mode='train'):
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label = train_test_split(input, target, test_size=0.15, random_state=0)
+    train_data, test_data, train_label, test_label = train_test_split(input, target, shuffle=True, test_size=0.15, random_state=0)
 
     if mode == 'train':
         input_data = train_data  # convert to tensor

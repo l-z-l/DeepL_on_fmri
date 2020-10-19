@@ -2,7 +2,6 @@ import torch, math
 from torch import nn
 from torch.nn import functional as F
 from utils.helper import sparse_dropout, dot
-from utils.config import args
 from torch.nn.init import xavier_normal_
 from utils.data import list_2_tensor
 
@@ -140,7 +139,10 @@ class FactorizedConvolution(nn.Module):
         layers = [Conv(input_dim, channel_dim, 1, 1),
                   Conv(channel_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),
                   Conv(channel_dim, channel_dim, kernel_size=(3, 1), stride=1, padding=(1, 0)),
-                  Conv(channel_dim, output_dim, 1, stride=1)
+                  Conv(channel_dim, output_dim, 1, stride=1),
+                  nn.BatchNorm2d(output_dim),
+                  nn.LeakyReLU(),
+                  nn.Dropout(0.5)
                   ]
         if bottle_neck == False:
             layers = [nn.Conv2d(input_dim, channel_dim, kernel_size=(1, 3), stride=1, padding=(0, 1)),

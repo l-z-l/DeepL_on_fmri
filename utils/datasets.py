@@ -1,4 +1,5 @@
 import torch
+from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, TensorDataset
 import numpy as np
 from utils.data import signal_to_connectivities
@@ -42,7 +43,7 @@ class DatasetFactory:
         train_idx = len(train_subject)
         subjects = torch.as_tensor(
             signal_to_connectivities(subjects,
-                                     kind='tangent',
+                                     kind='correlation',
                                      discard_diagonal=True,
                                      vectorize=True), dtype=torch.float
         )
@@ -64,6 +65,28 @@ class DatasetFactory:
         return DatasetFactory.create_train_test_connectivity_datasets_from_subject(train_subject, train_label,
                                                                                    test_subject, test_label)
 
+    @staticmethod
+    def create_train_test_roi_signal_datasets_from_single_path(path, test_ratio=0.15):
+        subjects = np.load(path + ".npy", allow_pickle=True)
+        labels = np.load(path + "_label.npy", allow_pickle=True)
+        train_subject, test_subject, train_label, test_label = train_test_split(subjects, labels, shuffle=True,
+                                                                                test_size=test_ratio, random_state=0)
+        return DatasetFactory.create_train_test_roi_signal_datasets_from_subject(train_subject, train_label,
+                                                                                   test_subject, test_label)
+
+    @staticmethod
+    def create_train_test_connectivity_datasets_from_single_path(path, test_ratio=0.15):
+        subjects = np.load(path + ".npy", allow_pickle=True)
+        labels = np.load(path + "_label.npy", allow_pickle=True)
+        train_subject, test_subject, train_label, test_label = train_test_split(subjects, labels, shuffle=True,
+                                                                                test_size=test_ratio, random_state=0)
+        return DatasetFactory.create_train_test_connectivity_datasets_from_subject(train_subject, train_label,
+                                                                                 test_subject, test_label)
+
+    @staticmethod
+    def tensorDataset_to_ConnectivityDatasets():
+
+        pass
 
 #
 class RoiSignalDataset(Dataset):
@@ -118,7 +141,7 @@ class ConnectivityDataset(Dataset):
         # subjects and labels
         self._subjects = torch.as_tensor(
             signal_to_connectivities(subjects,
-                                     kind='tangent',
+                                     kind='correlation',
                                      discard_diagonal=True,
                                      vectorize=True), dtype=torch.float
         )
@@ -141,12 +164,16 @@ class ConnectivityDataset(Dataset):
 
 
 class ConnectivityDatasets(Dataset):
-    def __init__(self, dataDir='../data', roi_type=None, num_subject=273):
+    def __init__(self, dataDir='../data', roi_type=None, datasets=[], num_subject=273):
         if roi_type is None:
             roi_type = ['MSDL']
         if len(roi_type) == 0:
             raise ValueError("invalid roi types")
-        self.datasets = [ConnectivityDataset(dataDir, roi, num_subject) for roi in roi_type]
+
+        if datasets == None or len(datasets) == 0:
+            self.datasets = [ConnectivityDataset(dataDir, roi, num_subject) for roi in roi_type]
+        else:
+            self.datasets = datasets
         length = len(self.datasets[0])
         # length check
         for i in range(1, len(self.datasets)):

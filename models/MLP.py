@@ -25,10 +25,10 @@ class Linear(nn.Module):
             nn.Linear(128, output_dim)
         )
         ### weight initialisation
-        # for m in self.modules():
-        #     if type(m) == nn.Linear:
-        #         torch.nn.init.xavier_normal_(m.weight)
-        #         m.bias.data.fill_(0.)
+        for m in self.modules():
+            if type(m) == nn.Linear:
+                torch.nn.init.xavier_normal_(m.weight)
+                m.bias.data.fill_(0.01)
 
     def forward(self, x):
-        return torch.sigmoid(self.MLP(x))  # Each element i,j is a scalar in R. f(xi,proj_j)
+        return self.MLP(x)  # Each element i,j is a scalar in R. f(xi,proj_j)
