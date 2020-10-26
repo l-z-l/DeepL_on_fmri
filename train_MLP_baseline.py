@@ -53,69 +53,69 @@ test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
 # %% initialise model and loss func
 ##########################################################
 print("--------> Using ", device)
-def train_glm(config, checkpoint_dir=None):
-    model = Linear(len(train_dataset[0][0]), 1)
-    model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=config['lr'], weight_decay=config['weight_decay'])
+# def train_glm(config, checkpoint_dir=None):
+model = Linear(len(train_dataset[0][0]), 1)
+model.to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_decay)
 
-    criterion = torch.nn.BCEWithLogitsLoss().to(device)
+criterion = torch.nn.BCEWithLogitsLoss().to(device)
 
-    train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-    for epoch in range(100):
-        model.train()
-        train_loss, correct, total = 0, 0, 0
-        val_loss, val_correct, val_total = 0, 0, 0
+train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(100):
+    model.train()
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
 
-        for batch_id, (train_x, train_y) in enumerate(train_loader):
-            # Preparing Data
-            train_x, train_y = train_x.to(device), train_y.to(device)
+    for batch_id, (train_x, train_y) in enumerate(train_loader):
+        # Preparing Data
+        train_x, train_y = train_x.to(device), train_y.to(device)
 
-            optimizer.zero_grad()
-            predict = model(train_x)
+        optimizer.zero_grad()
+        predict = model(train_x)
 
-            correct += num_correct(predict, train_y)
-            total += len(train_y)
+        correct += num_correct(predict, train_y)
+        total += len(train_y)
 
-            # Compute the loss
-            loss = criterion(predict.squeeze(), train_y)  # , requires_grad=True)
-            # Calculate gradients.
-            loss.backward()
-            # Minimise the loss according to the gradient.
-            optimizer.step()
+        # Compute the loss
+        loss = criterion(predict.squeeze(), train_y)  # , requires_grad=True)
+        # Calculate gradients.
+        loss.backward()
+        # Minimise the loss according to the gradient.
+        optimizer.step()
 
-            train_loss += loss.item()
+        train_loss += loss.item()
 
-        train_loss_list.append(train_loss / total)
-        training_acc.append(int(correct) / total * 100)
+    train_loss_list.append(train_loss / total)
+    training_acc.append(int(correct) / total * 100)
 
-        ### test ###
-        model.eval()
-        with torch.no_grad():
-            for val_batch_id, (val_x, val_y) in enumerate(test_loader):
-                val_x, val_y = val_x.to(device), val_y.to(device)
+    ### test ###
+    model.eval()
+    with torch.no_grad():
+        for val_batch_id, (val_x, val_y) in enumerate(test_loader):
+            val_x, val_y = val_x.to(device), val_y.to(device)
 
-                val_predict = model(val_x)
-                val_correct += num_correct(val_predict, val_y)
+            val_predict = model(val_x)
+            val_correct += num_correct(val_predict, val_y)
 
-                val_total += len(val_y)
-                val_loss += criterion(val_predict.squeeze(), val_y).item()
+            val_total += len(val_y)
+            val_loss += criterion(val_predict.squeeze(), val_y).item()
 
-        test_loss_list.append(val_loss / val_total)
-        testing_acc.append(int(val_correct) / val_total * 100)
-
-
-        tune.report(train_loss=train_loss_list[-1], train_accuracy=training_acc[-1], test_loss=test_loss_list[-1],
-                    test_accuracy=testing_acc[-1])
-        # if epoch % 20 == 0:
-        #     print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-        #     print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+    test_loss_list.append(val_loss / val_total)
+    testing_acc.append(int(val_correct) / val_total * 100)
 
 
-search_space = {
-    "lr": tune.grid_search([1e-4, 5e-4, 1e-3, 5e-3]), # tune.loguniform(1e-6, 1e-1),
-    "weight_decay": tune.grid_search([1e-4, 5e-4, 1e-3, 5e-3]), #tune.loguniform(1e-6, 1e-1),
-    # 'activation': tune.choice(["relu", "tanh"])
-}
+    # tune.report(train_loss=train_loss_list[-1], train_accuracy=training_acc[-1], test_loss=test_loss_list[-1],
+    #             test_accuracy=testing_acc[-1])
+    if epoch % 20 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+
+
+# search_space = {
+#     "lr": tune.grid_search([1e-4, 5e-4, 1e-3, 5e-3]), # tune.loguniform(1e-6, 1e-1),
+#     "weight_decay": tune.grid_search([1e-4, 5e-4, 1e-3, 5e-3]), #tune.loguniform(1e-6, 1e-1),
+#     # 'activation': tune.choice(["relu", "tanh"])
+# }
 
 # hyperopt_search = HyperOptSearch(search_space, metric="mean_accuracy", mode="max")
 # bayesopt = BayesOptSearch(utility_kwargs={
@@ -123,20 +123,20 @@ search_space = {
 #         "kappa": 2.5,
 #         "xi": 0.0
 #     })
-reporter = CLIReporter(
-    # parameter_columns=["l1", "l2", "lr", "batch_size"],
-    metric_columns=["train_loss_list", "train_accuracy", "test_loss", "test_accuracy"])
+# reporter = CLIReporter(
+#     # parameter_columns=["l1", "l2", "lr", "batch_size"],
+#     metric_columns=["train_loss_list", "train_accuracy", "test_loss", "test_accuracy"])
+#
+# analysis = tune.run(train_glm, resources_per_trial={"cpu": 12, "gpu": 1},
+#                     num_samples=1,
+#                     scheduler=ASHAScheduler(max_t=1000),
+#                     # scheduler=ASHAScheduler(metric="test_accuracy", mode="max", max_t=800),
+#                     metric="test_accuracy",
+#                     mode="max",
+#                     config=search_space,
+#                     progress_reporter=reporter,)
 
-analysis = tune.run(train_glm, resources_per_trial={"cpu": 12, "gpu": 1},
-                    num_samples=1,
-                    scheduler=ASHAScheduler(max_t=1000),
-                    # scheduler=ASHAScheduler(metric="test_accuracy", mode="max", max_t=800),
-                    metric="test_accuracy",
-                    mode="max",
-                    config=search_space,
-                    progress_reporter=reporter,)
 
-'''
 
 history = {
     "train_loss": train_loss_list,
@@ -156,7 +156,7 @@ if SAVE:
 # %% Plot result
 #########################################################
 plot_train_result(history, save_path=save_path)
-
+'''
 #########################################################
 # %% Evaluate result
 #########################################################

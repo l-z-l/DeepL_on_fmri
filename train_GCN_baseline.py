@@ -37,7 +37,7 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
@@ -132,7 +132,7 @@ train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
 
-train_loader = DataLoader(graphs, batch_size=64, sampler=train_sampler)
+train_loader = DataLoader(graphs, batch_size=1, sampler=train_sampler)
 test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 
 ##########################################################
@@ -140,7 +140,7 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 ##########################################################
 print("--------> Using ", device)
 
-'''
+''''''
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=1).to(device)
 # def train_gnn(config, checkpoint_dir=None):
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
@@ -268,8 +268,8 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
-'''
 
+'''
 #########################################################
 # %% Interpret result
 #########################################################
@@ -315,7 +315,7 @@ plt.show()
 # %%
 ### view connectome
 
-'''
+
 # %%
 ### Explain
 explainer = GNNExplainer(model, epochs=1)
