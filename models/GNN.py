@@ -105,22 +105,22 @@ class GNN_SAG(torch.nn.Module):
     def __init__(self, num_features, nhid, num_classes=2, pooling_ratio=0.5, dropout_ratio=0.3):
         super(GNN_SAG, self).__init__()
         self.num_features = num_features
-        self.nhid = nhid
+        self.nhid = nhid * 3
         self.num_classes = num_classes
         self.pooling_ratio = pooling_ratio
         self.dropout_ratio = dropout_ratio
 
         ###
         # 1st layer
-        self.conv1 = GraphConv(self.num_features, self.nhid)
+        self.conv1 = GATConv(self.num_features, self.nhid // 3, heads=3)
         self.bn1 = nn.BatchNorm1d(self.nhid)
         self.pool1 = SAGPooling(self.nhid, ratio=self.pooling_ratio)
         # 2nd layer
-        self.conv2 = GraphConv(self.nhid, self.nhid)
+        self.conv2 = GATConv(self.nhid, self.nhid // 3, heads=3)
         self.bn2 = nn.BatchNorm1d(self.nhid)
         self.pool2 = SAGPooling(self.nhid, ratio=self.pooling_ratio)
         # 3rd layer
-        self.conv3 = GraphConv(self.nhid, self.nhid)
+        self.conv3 = GATConv(self.nhid, self.nhid // 3, heads=3)
         self.bn3 = nn.BatchNorm1d(self.nhid)
         self.pool3 = SAGPooling(self.nhid, ratio=self.pooling_ratio)
         # fc layer
@@ -157,7 +157,6 @@ class GNN_SAG(torch.nn.Module):
         x = F.dropout(x, p=self.dropout_ratio, training=self.training)
         x = F.relu(self.lin2(x))
         x = F.dropout(x, p=self.dropout_ratio, training=self.training)
-        # x = F.log_softmax(self.lin3(x), dim=-1)
 
         return self.lin3(x)
 

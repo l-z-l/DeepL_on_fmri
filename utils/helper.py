@@ -23,6 +23,7 @@ import seaborn as sns
 def functools_reduce_iconcat(a):
     return functools.reduce(operator.iconcat, a, [])
 
+
 def plot_evaluation_matrix(label_truth, label_pred, label_pred_raw, save_path=None):
     label_pred = functools_reduce_iconcat(label_pred)
     label_truth = functools_reduce_iconcat(label_truth)
@@ -68,11 +69,13 @@ def plot_evaluation_matrix(label_truth, label_pred, label_pred_raw, save_path=No
     ax1.set_title('ROC')
     ax1.plot(fpr, tpr, color='dodgerblue', marker='.', label='AUC = %0.2f' % roc_auc)
     ax1.plot([0, 1], [0, 1], 'r--')
-    ax1.set_xlabel('True Positive'); ax1.set_ylabel('False Positive')
+    ax1.set_xlabel('True Positive');
+    ax1.set_ylabel('False Positive')
 
     ax2.set_title('Precision_recall curve')
     ax2.plot(recall, precision, color='dodgerblue', marker='.', label='F1 score = %0.2f' % f1)
-    ax2.set_xlabel('Recall'); ax2.set_ylabel('Precision')
+    ax2.set_xlabel('Recall');
+    ax2.set_ylabel('Precision')
 
     ax1.legend()
     ax2.legend()
@@ -89,7 +92,8 @@ def train_loader(batch_size, input, target, mode='train'):
 
     # Define loaders
     # train_idx, valid_idx = train_test_split(np.arange(len(target)), test_size=0.2, shuffle=True, stratify=target)
-    train_data, test_data, train_label, test_label = train_test_split(input, target, shuffle=True, test_size=0.15, random_state=0)
+    train_data, test_data, train_label, test_label = train_test_split(input, target, shuffle=True, test_size=0.15,
+                                                                      random_state=0)
 
     if mode == 'train':
         input_data = train_data  # convert to tensor
@@ -239,7 +243,6 @@ def plot_train_result(history, best_epoch=None, save_path=None):
     # ax3 = fig.add_subplot(gs[2, 0])  # top left on a 4x4 grid: KL divergence
     # ax4 = fig.add_subplot(gs[2, 1])  # bottom right on a 4x4 grid: MI
 
-
     #  plot the overall loss
     ax1.set_title('Loss')
     ax1.plot(history['train_loss'], color='dodgerblue', label='train')
@@ -346,3 +349,20 @@ def dot(x, y, sparse=False):
     else:
         res = torch.mm(x, y)
     return res
+
+
+if __name__ == '__main__':
+    paths = ["../data/273_Havard_Oxford", "../data/273_MSDL", "../data/273_ICA_200_n50"]
+    sample_subjects = np.load(paths[0] + ".npy", allow_pickle=True)
+    sample_labels = np.load(paths[0] + "_label.npy", allow_pickle=True)
+
+    train_idx, valid_idx = train_test_split(np.arange(len(sample_subjects)),
+                                            test_size=0.2,
+                                            shuffle=True, random_state=None)
+    for p in paths:
+        x = np.load(p + ".npy", allow_pickle=True)
+        y = np.load(p + "_label.npy", allow_pickle=True)
+        np.save(p + "_train", x[train_idx])
+        np.save(p + "_train_label", y[train_idx])
+        np.save(p + "_test", x[valid_idx])
+        np.save(p + "_test_label", y[valid_idx])

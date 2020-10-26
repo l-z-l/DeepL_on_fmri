@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 from torch import nn
 from torch import optim
@@ -17,20 +19,37 @@ from sklearn.metrics import accuracy_score
 # plot
 import matplotlib.pyplot as plt
 
+
+##########################################################
+# %% Meta
+###############train_test_split###########################
+SAVE = True
+MODEL_NANE = f'LSTM_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
+datadir = './data'
+outdir = './outputs'
+dataset_name = '271_AAL_org_100_window_5_stride'
+device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
+
+if SAVE:
+    save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
+    if not os.path.isdir(save_path):
+        os.mkdir(save_path)
+else:
+    save_path = ''
 ##########################################################
 # %% Load Data
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ## augmented
-# train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_path(
-#     train_path="data/augmented/2070_train_271_AAL_org_100_window_5_stride",
-#     test_path="data/augmented/369_test_271_AAL_org_100_window_5_stride")
+train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_path(
+    train_path="data/augmented/2070_train_271_AAL_org_100_window_5_stride",
+    test_path="data/augmented/369_test_271_AAL_org_100_window_5_stride")
 ## not augmented
-train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_single_path(
-    path="data/271_AAL"
-)
+# train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_single_path(
+#     path="data/271_AAL"
+# )
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
 ##########################################################
 # %% initialise mode and
 ##########################################################
@@ -40,7 +59,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_d
 criterion = nn.CrossEntropyLoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(2000):
+for epoch in range(500):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -96,4 +115,4 @@ history = pd.DataFrame(history)
 #########################################################
 # %% Plot result
 #########################################################
-plot_train_result(history, save_path=None)
+plot_train_result(history, save_path=save_path)

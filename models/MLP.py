@@ -28,7 +28,7 @@ class Linear(nn.Module):
         for m in self.modules():
             if type(m) == nn.Linear:
                 torch.nn.init.xavier_normal_(m.weight)
-                m.bias.data.fill_(0.01)
+                m.bias.data.fill_(0.)
 
     def forward(self, x):
         return self.MLP(x)  # Each element i,j is a scalar in R. f(xi,proj_j)

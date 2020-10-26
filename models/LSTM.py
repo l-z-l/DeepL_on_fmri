@@ -21,7 +21,7 @@ class LSTM(nn.Module):
             nn.Conv1d(hidden_dim, hidden_dim, kernel_size=2, padding=3),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=seq_len//10),
-            nn.Dropout()
+            nn.Dropout(0.5)
             # nn.BatchNorm1d(hidden_layer_size)
         )
 

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import torch
 from torch import nn
 from torch import optim
@@ -14,8 +16,28 @@ from torch.utils.data import DataLoader
 # plot
 import matplotlib.pyplot as plt
 
-from utils.helper import num_correct
+from utils.helper import num_correct, plot_train_result
 
+##########################################################
+# %% Meta
+###############train_test_split###########################
+SAVE = True
+MODEL_NANE = f'EnsembleMLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
+datadir = './data'
+outdir = './outputs'
+dataset_name = '273_Havard_Oxford_MSDL_ICA'
+device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
+
+if SAVE:
+    save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
+    if not os.path.isdir(save_path):
+        os.mkdir(save_path)
+else:
+    save_path = ''
+
+##########################################################
+# %% load data
+###############train_test_split###########################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 BATCH_SIZE = 64
 # load the data
@@ -29,17 +51,16 @@ BATCH_SIZE = 64
 #                                          "test_273_ICA_200_n50_org_100_window_5_stride",
 #                                          "test_273_MSDL_org_100_window_5_stride"],
 #                                num_subject=369)
-train_dataset1, test_dataset1 = DatasetFactory.create_train_test_connectivity_datasets_from_single_path(
-    path="data/273_MSDL"
-)
-train_dataset2, test_dataset2 = DatasetFactory.create_train_test_connectivity_datasets_from_single_path(
-    path="data/273_Havard_Oxford"
-)
-train_dataset3, test_dataset3 = DatasetFactory.create_train_test_connectivity_datasets_from_single_path(
-    path="data/273_ICA_200_n50"
-)
-train_dataset = ConnectivityDatasets(datasets=[train_dataset1, train_dataset2, train_dataset3])
-test_dataset = ConnectivityDatasets(datasets=[test_dataset1, test_dataset2, test_dataset3])
+train_dataset = ConnectivityDatasets('./data',
+                               roi_type=["Havard_Oxford_train",
+                                         "MSDL_train",
+                                         "ICA_200_n50_train"],
+                               num_subject=273)
+test_dataset = ConnectivityDatasets('./data',
+                               roi_type=["Havard_Oxford_test",
+                                         "MSDL_test",
+                                         "ICA_200_n50_test"],
+                               num_subject=273)
 
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4)
@@ -54,11 +75,11 @@ ensembler = Ensemblers(models, output_dim=2, model_out_dim=1, num_models=len(mod
 ensembler.to(device)
 
 # %%
-optimizer = optim.Adam(ensembler.parameters(), lr=1e-3, weight_decay=5e-3)
+optimizer = optim.Adam(ensembler.parameters(), lr=1e-1, weight_decay=5e-2)
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
-for epoch in range(5):
+for epoch in range(1000):
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
     for batch_id, (data, target) in enumerate(train_loader):
@@ -66,6 +87,8 @@ for epoch in range(5):
         target = target.to(device)
 
         # Feedforward
+        # print(list(ensembler.parameters()))
+        # print("=" * 20)
         output = ensembler(data)
         loss = criterion(output.squeeze(), target.long())
 
@@ -97,7 +120,20 @@ for epoch in range(5):
         test_loss_list.append(val_loss / val_total)
         testing_acc.append(int(val_correct) / val_total * 100)
 
-    # if epoch % 10 == 0:
-    print(
-        f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-    print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+    if epoch % 100 == 0:
+        print(
+            f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+
+history = {
+    "train_loss": train_loss_list,
+    "train_acc": training_acc,
+    "test_loss": test_loss_list,
+    "test_acc": testing_acc,
+}
+history = pd.DataFrame(history)
+
+#########################################################
+# %% Plot result
+#########################################################
+plot_train_result(history, save_path=save_path)

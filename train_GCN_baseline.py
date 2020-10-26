@@ -4,6 +4,7 @@ import random
 import bct
 import torch
 import matplotlib.pyplot as plt
+from nilearn.connectome import ConnectivityMeasure
 from sklearn.metrics import plot_confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
@@ -34,11 +35,11 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = False
+SAVE = True
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
-dataset_name = '271_AAL'
+dataset_name = '273_MSDL'
 if SAVE:
     save_path = os.path.join(outdir, f'{MODEL_NANE}_{dataset_name}/') if SAVE else ''
     if not os.path.isdir(save_path):
@@ -52,17 +53,20 @@ else:
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 
 ROIs, labels, labels_index = load_fmri_data(dataDir=datadir, dataset=dataset_name)
+ROIs_supp, labels_supp, labels_index_supp = load_fmri_data(dataDir=datadir, dataset='62_MSDL')
+
+labels = np.concatenate([labels, labels_supp])
 # take the frist 20
-ROIs = ROIs[:, :90, :]
 labels = [x if (x == "CN") else "CD" for x in labels]
 
 _, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 
-connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation')
-partial_corr = signal_to_connectivities(ROIs, kind='partial correlation')
-precision = signal_to_connectivities(ROIs, kind='precision')
+connectivity_matrices = np.concatenate([signal_to_connectivities(ROIs, kind='correlation'), signal_to_connectivities(ROIs_supp, kind='correlation')])
+partial_corr = np.concatenate([signal_to_connectivities(ROIs, kind='partial correlation'), signal_to_connectivities(ROIs_supp, kind='partial correlation')])
+precision = np.concatenate([signal_to_connectivities(ROIs, kind='precision'), signal_to_connectivities(ROIs_supp, kind='precision')])
 
+# %%
 ### get features
 graphs = []
 node_embeddings = []
@@ -94,7 +98,7 @@ for i, matrix in enumerate(connectivity_matrices):
     edge_attr = torch.from_numpy(np.vstack((corr.data, par_corr.data, covar.data)).transpose())
 
     ### node_embed
-    x = node_embed([matrix], mask_coord='AAL').squeeze()
+    x = node_embed([matrix], mask_coord='MSDL').squeeze()
     # print(x[0]) # TODO: check later
     # TODO: Node normalizaiton
     node_embeddings.append(x)
@@ -108,11 +112,11 @@ for i, matrix in enumerate(connectivity_matrices):
 
 xs = torch.cat(node_embeddings, 0)
 xs = scaler.fit_transform(xs)
-xs = torch.tensor(xs.reshape((ROIs.shape[0], ROIs.shape[2], xs.shape[-1])), dtype=torch.float)
+xs = torch.tensor(xs.reshape((ROIs.shape[0] + ROIs_supp.shape[0], ROIs.shape[2], xs.shape[-1])), dtype=torch.float)
 
 # normalize edge
 for i, g in enumerate(graphs):
-    g.x = xs[i]  # + int(label[i]) * 1000
+    g.x = xs[i] # + int(label[i]) * 10000
 
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
@@ -134,121 +138,65 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 ##########################################################
 print("--------> Using ", device)
 
-
+'''
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=1).to(device)
-def train_gnn(config, checkpoint_dir=None):
-    model = GNN_SAG(num_features=x.shape[1], nhid=64, num_classes=1, pooling_ratio=config['pooling_ratio'],
-                    dropout_ratio=config['dropout_ratio']).to(device)  #
+# def train_gnn(config, checkpoint_dir=None):
+model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
+            dropout_ratio=0.5).to(device)
+            # dropout_ratio=config['dropout_ratio']).to(device)  #
 
-    optimizer = optim.Adam(model.parameters(), lr=config['lr'], weight_decay=config['weight_decay'])
-    criterion = nn.BCEWithLogitsLoss().to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.005)
+criterion = nn.CrossEntropyLoss().to(device)
 
-    train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-    for epoch in range(1000):
-        model.train()
-        train_loss, correct, total = 0, 0, 0
-        val_loss, val_correct, val_total = 0, 0, 0
+train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
+for epoch in range(800):
+    model.train()
+    train_loss, correct, total = 0, 0, 0
+    val_loss, val_correct, val_total = 0, 0, 0
 
-        ### train ###
-        for data in train_loader:  # Iterate in batches over the training dataset.
-            data = data.to(device)
-            # Feedforward
-            optimizer.zero_grad()
-            predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
+    ### train ###
+    for data in train_loader:  # Iterate in batches over the training dataset.
+        data = data.to(device)
+        # Feedforward
+        optimizer.zero_grad()
+        predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
 
-            # Compute the loss
-            loss = criterion(predict.squeeze(), data.y)
-            loss.backward()
-            optimizer.step()
+        # Compute the loss
+        loss = criterion(predict.squeeze(), data.y.long())
+        loss.backward()
+        optimizer.step()
 
-            pred = (output >= 0.5).float()
-            correct += (pred == target).float().sum()
-            total += target.size()[0]
-            accuracy = 100 * correct / total
+        correct += num_correct(predict, data.y)
+        total += len(data.y)
+        train_loss += loss.item()
 
-        train_loss_list.append(train_loss / total)
-        training_acc.append(int(correct) / total * 100)
+    train_loss_list.append(train_loss / total)
+    training_acc.append(int(correct) / total * 100)
 
-        ### test ###
-        model.eval()
-        with torch.no_grad():
-            for test_data in test_loader:  # Iterate in batches over the training dataset.
-                test_data = test_data.to(device)
+    ### test ###
+    model.eval()
+    with torch.no_grad():
+        for test_data in test_loader:  # Iterate in batches over the training dataset.
+            test_data = test_data.to(device)
 
-                val_predict = model(test_data.x, test_data.edge_index, test_data.edge_attr, test_data.batch)
-                val_correct += num_correct(val_predict, test_data.y)
+            val_predict = model(test_data.x, test_data.edge_index, test_data.edge_attr, test_data.batch)
+            val_correct += num_correct(val_predict, test_data.y)
 
-                val_total += len(test_data.y)
-                val_loss += criterion(val_predict.squeeze(), test_data.y).item()
+            val_total += len(test_data.y)
+            val_loss += criterion(val_predict.squeeze(), test_data.y.long()).item()
 
-        test_loss_list.append(val_loss / val_total)
-        testing_acc.append(int(val_correct) / val_total * 100)
+    test_loss_list.append(val_loss / val_total)
+    testing_acc.append(int(val_correct) / val_total * 100)
 
-        ### for hyper parameter tuning
-        tune.report(train_loss=train_loss_list[-1], train_accuracy=training_acc[-1], test_loss=test_loss_list[-1],
-                    test_accuracy=testing_acc[-1])
+    ### for hyper parameter tuning
+    # tune.report(train_loss=train_loss_list[-1], train_accuracy=training_acc[-1], test_loss=test_loss_list[-1],
+    #             test_accuracy=testing_acc[-1])
 
-        # if epoch % 100 == 0:
-        #     print(
-        #         f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
-        #     print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
-        #     # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
+    if epoch % 50 == 0:
+        print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
+        print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
+        # print(f"Epoch: {epoch}, Loss: {running_loss/total}")
 
-
-search_space = {
-    "lr": tune.grid_search([5e-4]), # tune.loguniform(1e-6, 1e-1),
-    "weight_decay": tune.grid_search([5e-3]), #tune.loguniform(1e-6, 1e-1),
-    "pooling_ratio": tune.grid_search([0.1, 0.3, 0.5, 0.7, 0.9]), # tune.uniform(0.1, 0.9),
-    "dropout_ratio": tune.grid_search([0.1, 0.3, 0.5, 0.7, 0.9]), #tune.uniform(0.1, 0.9),
-    # 'activation': tune.choice(["relu", "tanh"])
-}
-
-# hyperopt_search = HyperOptSearch(search_space, metric="mean_accuracy", mode="max")
-# bayesopt = BayesOptSearch(utility_kwargs={
-#         "kind": "ucb",
-#         "kappa": 2.5,
-#         "xi": 0.0
-#     })
-reporter = CLIReporter(
-    # parameter_columns=["l1", "l2", "lr", "batch_size"],
-    metric_columns=["train_loss", "train_accuracy", "test_loss", "test_accuracy"])
-
-analysis = tune.run(train_gnn, resources_per_trial={"cpu": 12, "gpu": 1},
-                    num_samples=1,
-                    scheduler=ASHAScheduler(max_t=1000),
-                    # scheduler=ASHAScheduler(metric="test_accuracy", mode="max", max_t=800),
-                    metric="test_accuracy",
-                    mode="max",
-                    config=search_space,
-                    progress_reporter=reporter,)
-                    # search_alg=bayesopt)
-
-### Evaluations
-dfs = analysis.trial_dataframes
-best_trial = analysis.get_best_trial("test_accuracy", "max", "last-10-avg")
-print("Best trial config: {}".format(best_trial.config))
-print(
-    f"Best trial final train loss: {best_trial.last_result['train_loss']}, validation loss: {best_trial.last_result['test_loss']}")
-print(
-    f"Best trial final train accuracy: {best_trial.last_result['train_accuracy']}, validation accuracy: {best_trial.last_result['test_accuracy']}")
-
-#### PLot
-# style
-plt.style.use('seaborn-darkgrid')
-fig = plt.figure(figsize=(20, 20))
-# create a color palette
-palette = plt.get_cmap('Set1')
-for i, df in enumerate(dfs.values()):
-    plt.plot(df['test_accuracy'], marker='', color=palette(i), linewidth=1, alpha=0.9)
-    # df.test_accuracy.plot(ax=ax, legend=True)
-
-plt.xlabel("Epochs")
-plt.ylabel("Mean Accuracy")
-# plt.legend(loc=2, ncol=2)
-plt.show()
-'''
-'''
-'''
 history = {
     "train_loss": train_loss_list,
     "train_acc": training_acc,
@@ -257,41 +205,86 @@ history = {
 }
 history = pd.DataFrame(history)
 
+# search_space = {
+#     "lr": tune.grid_search([5e-4]), # tune.loguniform(1e-6, 1e-1),
+#     "weight_decay": tune.grid_search([5e-3]), #tune.loguniform(1e-6, 1e-1),
+#     "pooling_ratio": tune.grid_search([0.1, 0.3, 0.5, 0.7, 0.9]), # tune.uniform(0.1, 0.9),
+#     "dropout_ratio": tune.grid_search([0.1, 0.3, 0.5, 0.7, 0.9]), #tune.uniform(0.1, 0.9),
+#     # 'activation': tune.choice(["relu", "tanh"])
+# }
+
+# hyperopt_search = HyperOptSearch(search_space, metric="mean_accuracy", mode="max")
+# bayesopt = BayesOptSearch(utility_kwargs={
+#         "kind": "ucb",
+#         "kappa": 2.5,
+#         "xi": 0.0
+#     })
+# reporter = CLIReporter(
+#     # parameter_columns=["l1", "l2", "lr", "batch_size"],
+#     metric_columns=["train_loss", "train_accuracy", "test_loss", "test_accuracy"])
+#
+# analysis = tune.run(train_gnn, resources_per_trial={"cpu": 12, "gpu": 1},
+#                     num_samples=1,
+#                     scheduler=ASHAScheduler(max_t=1000),
+#                     # scheduler=ASHAScheduler(metric="test_accuracy", mode="max", max_t=800),
+#                     metric="test_accuracy",
+#                     mode="max",
+#                     config=search_space,
+#                     progress_reporter=reporter,)
+#                     # search_alg=bayesopt)
+
+### Evaluations
+# dfs = analysis.trial_dataframes
+# best_trial = analysis.get_best_trial("test_accuracy", "max", "last-10-avg")
+# print("Best trial config: {}".format(best_trial.config))
+# print(
+#     f"Best trial final train loss: {best_trial.last_result['train_loss']}, validation loss: {best_trial.last_result['test_loss']}")
+# print(
+#     f"Best trial final train accuracy: {best_trial.last_result['train_accuracy']}, validation accuracy: {best_trial.last_result['test_accuracy']}")
+
+#### PLot
+# style
+# plt.style.use('seaborn-darkgrid')
+# fig = plt.figure(figsize=(20, 20))
+# # create a color palette
+# palette = plt.get_cmap('Set1')
+# for i, df in enumerate(dfs.values()):
+#     plt.plot(df['test_accuracy'], marker='', color=palette(i), linewidth=1, alpha=0.9)
+#     # df.test_accuracy.plot(ax=ax, legend=True)
+#
+# plt.xlabel("Epochs")
+# plt.ylabel("Mean Accuracy")
+# # plt.legend(loc=2, ncol=2)
+# plt.show()
 
 ### save
 if SAVE:
     # SAVE TRAINED MODEL and history
     history.to_csv(save_path + 'epochs.csv')
     # save model
-    torch.save(model, save_path + 'GCN.pth')
-
-# %%
-# node_idx = 10
-# explainer = GNNExplainer(model, epochs=1000)
-# node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, (data.edge_attr, data.batch))
-# ax, G = explainer.visualize_subgraph(node_idx, edge_index, edge_mask, y=data.y)# %% Plot result
-# plt.show()#########################################################
+    torch.save(model.state_dict(), save_path + 'GCN.pth')
 
 # %%
 plot_train_result(history, save_path=save_path)
-
-#########################################################
-# %% Evaluate result
-#########################################################
-### test ###
-# model.eval()
-# label_truth = []
-# label_pred = []
-# with torch.no_grad():
-#     for test_data in test_loader:
-#         label_truth.append(test_data.y.numpy().tolist())
-#         test_data = test_data.to(device)
-#
-#         val_predict = model(test_data.x, test_data.edge_index, test_data.edge_attr, test_data.batch)
-#
-#         pred = val_predict.max(dim=-1)[-1] if val_predict.shape[1] > 1 else val_predict > 0.5
-#
-#         label_pred.append(pred.cpu().numpy().tolist())
-#
-# plot_evaluation_matrix(label_truth, label_pred, save_path)
 '''
+#########################################################
+# %% Interpret result
+#########################################################
+# load the model
+model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
+            dropout_ratio=0.5)# .to(device)
+model.load_state_dict(torch.load('./outputs/SAG_2020-10-26-11:37_273_MSDL/GCN.pth'))
+
+val_loader = DataLoader(graphs, batch_size=1, sampler=valid_sampler)
+valiter = iter(val_loader)
+data = next(valiter)# .to(device)
+
+# %%
+### Explaine
+explainer = GNNExplainer(model, epochs=1)
+node_idx = 10
+node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, edge_attr=data.edge_attr, batch=data.batch)
+ax, G = explainer.visualize_subgraph(node_idx, data.edge_index, edge_mask)
+plt.show()
+
+val_predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
