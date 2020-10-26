@@ -12,6 +12,7 @@ from torch.utils.data import SubsetRandomSampler
 from torch_geometric.data import Dataset
 from torch import nn
 from torch import optim
+from torch_geometric.utils import to_networkx
 
 from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
@@ -21,14 +22,12 @@ import pandas as pd
 import scipy.sparse as sp
 import networkx as nx
 from torch_geometric.data import Data, DataLoader
-from torch_geometric.utils import dropout_adj
-from torch_geometric.nn import global_max_pool, global_mean_pool
-from torch.nn import functional as F
 # from utils.config import args
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
 from torch_geometric.nn import GNNExplainer
 
+from nilearn import plotting, datasets
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
@@ -75,12 +74,12 @@ graphs = []
 node_embeddings = []
 scaler = MinMaxScaler(feature_range=(0, 1))
 for i, matrix in enumerate(connectivity_matrices):
-    # node is not model connected
+    # node is not self connected
     # np.fill_diagonal(matrix, 0)
 
     ### THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
     absmx = abs(matrix)
-    percentile = np.percentile(absmx, 90)  # threshold 50 % of connections
+    percentile = np.percentile(absmx, 5)  # threshold 50 % of connections
     # mean, std = np.mean(abs(matrix)), np.std(abs(matrix))
     mask = absmx < percentile
     # mask = (mean + 0.5 * std)
@@ -124,7 +123,7 @@ for i, g in enumerate(graphs):
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
 print(f'Contains isolated nodes: {graphs[-1].contains_isolated_nodes()}')
-print(f'model Connected: {graphs[-1].contains_self_loops()}')
+print(f'Self Connected: {graphs[-1].contains_self_loops()}')
 
 ### sampling
 train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
@@ -269,15 +268,57 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
-'''                      
+'''
 #########################################################
 # %% Interpret result
 #########################################################
 # load the model
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
-            dropout_ratio=0.5).to(device)
-model.load_state_dict(torch.load('./outputs/SAG_bnafter_273_MSDL/GCN.pth'))
+            dropout_ratio=0.5)# .to(device)
+model.load_state_dict(torch.load('./outputs/SAG_bnbefore_273_MSDL/GCN.pth'))
 
 val_loader = DataLoader(graphs, batch_size=1, sampler=valid_sampler)
 valiter = iter(val_loader)
-data = next(valiter).to(device)
+data_batch = next(valiter)# .to(device)
+
+# %%
+# only keep the one edge attr as edge weights
+data = data_batch.to_data_list()[0]
+data.edge_attr = data.edge_attr[:, 1]
+raw_networkx = to_networkx(data, node_attrs=['x'], edge_attrs=['edge_attr'], to_undirected=True, remove_self_loops=True)
+raw_adj = nx.to_numpy_array(raw_networkx, weight='edge_attr') # plot to connectome
+
+# %%
+adj, weight = data_batch.edge_index, data_batch.edge_attr
+param_dict = model.interpret(data_batch.x, adj, weight, data_batch.batch)
+
+
+# %%
+data_process = Data(edge_index=param_dict['edge_index_2'], edge_attr=param_dict['edge_attr_2'], y=data.y).to('cpu')
+data_process.edge_attr = data_process.edge_attr[:, 1]
+G = to_networkx(data_process, edge_attrs=['edge_attr'], to_undirected=True, remove_self_loops=True)
+adj = nx.to_numpy_array(G, weight='edge_attr') # plot to connectome
+
+
+
+
+# %% Connection plot
+coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
+raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%').open_in_browser()
+view = plotting.view_connectome(adj, coordinates, edge_threshold='10%').open_in_browser()
+
+# %%
+### view connectome
+plotting.plot_connectome(raw_adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+plt.show()
+'''
+# %%
+### Explain
+explainer = GNNExplainer(model, epochs=1)
+node_idx = 10
+node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, edge_attr=data.edge_attr, batch=data.batch)
+ax, G = explainer.visualize_subgraph(node_idx, data.edge_index, edge_mask)
+plt.show()
+
+val_predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
+'''
