@@ -37,7 +37,7 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = False
+SAVE = True
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
@@ -140,7 +140,7 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 ##########################################################
 print("--------> Using ", device)
 
-''''''
+'''
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=1).to(device)
 # def train_gnn(config, checkpoint_dir=None):
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
@@ -268,15 +268,15 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
-
 '''
+
 #########################################################
 # %% Interpret result
 #########################################################
 # load the model
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
             dropout_ratio=0.5)# .to(device)
-model.load_state_dict(torch.load('./outputs/SAG_bnbefore_273_MSDL/GCN.pth'))
+model.load_state_dict(torch.load('./outputs/GAT_273_MSDL/GCN.pth'))
 
 val_loader = DataLoader(graphs, batch_size=1, sampler=valid_sampler)
 valiter = iter(val_loader)
@@ -295,12 +295,10 @@ param_dict = model.interpret(data_batch.x, adj, weight, data_batch.batch)
 
 
 # %%
-data_process = Data(edge_index=param_dict['edge_index_2'], edge_attr=param_dict['edge_attr_2'], y=data.y).to('cpu')
+data_process = Data(edge_index=param_dict['l3_edge_index_dropped'], edge_attr=param_dict['l3_edge_attr_dropped'], y=data.y).to('cpu')
 data_process.edge_attr = data_process.edge_attr[:, 1]
 G = to_networkx(data_process, edge_attrs=['edge_attr'], to_undirected=True, remove_self_loops=True)
 adj = nx.to_numpy_array(G, weight='edge_attr') # plot to connectome
-
-
 
 
 # %% Connection plot
@@ -317,7 +315,7 @@ plt.show()
 # %%
 ### view connectome
 
-
+'''
 # %%
 ### Explain
 explainer = GNNExplainer(model, epochs=1)
