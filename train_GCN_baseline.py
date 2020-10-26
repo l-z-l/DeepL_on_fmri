@@ -37,7 +37,7 @@ from ray.tune.suggest.bayesopt import BayesOptSearch
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
@@ -140,18 +140,18 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 ##########################################################
 print("--------> Using ", device)
 
-'''
+''''''
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=1).to(device)
 # def train_gnn(config, checkpoint_dir=None):
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
             dropout_ratio=0.5).to(device)
             # dropout_ratio=config['dropout_ratio']).to(device)  #
 
-optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.005)
+optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.005)
 criterion = nn.CrossEntropyLoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(800):
+for epoch in range(1000):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0
@@ -268,6 +268,7 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
+
 '''
 #########################################################
 # %% Interpret result
@@ -307,18 +308,21 @@ coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
 raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%').open_in_browser()
 view = plotting.view_connectome(adj, coordinates, edge_threshold='10%').open_in_browser()
 
-# %%
 ### view connectome
 plotting.plot_connectome(raw_adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
 plt.show()
-'''
+plotting.plot_connectome(adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+plt.show()
+
+# %%
+### view connectome
+
+
 # %%
 ### Explain
 explainer = GNNExplainer(model, epochs=1)
 node_idx = 10
-node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, edge_attr=data.edge_attr, batch=data.batch)
-ax, G = explainer.visualize_subgraph(node_idx, data.edge_index, edge_mask)
+node_feat_mask, edge_mask = explainer.explain_node(node_idx, data_batch.x, data_batch.edge_index, edge_attr=data_batch.edge_attr, batch=data_batch.batch)
+ax, G = explainer.visualize_subgraph(node_idx, data_batch.edge_index, edge_mask)
 plt.show()
-
-val_predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
 '''
