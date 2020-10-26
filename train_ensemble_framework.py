@@ -75,7 +75,7 @@ ensembler = Ensemblers(models, output_dim=2, model_out_dim=1, num_models=len(mod
 ensembler.to(device)
 
 # %%
-optimizer = optim.Adam(ensembler.parameters(), lr=1e-1, weight_decay=5e-2)
+optimizer = optim.Adam(ensembler.parameters(), lr=1e-5, weight_decay=5e-2)
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
@@ -120,7 +120,7 @@ for epoch in range(1000):
         test_loss_list.append(val_loss / val_total)
         testing_acc.append(int(val_correct) / val_total * 100)
 
-    if epoch % 100 == 0:
+    if epoch % 50 == 0:
         print(
             f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")

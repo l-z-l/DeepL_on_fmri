@@ -11,8 +11,10 @@ from sklearn.preprocessing import MinMaxScaler
 from torch.utils.data import SubsetRandomSampler
 from torch_geometric.data import Dataset
 from torch import nn
+from torch.nn import functional as F
 from torch import optim
 from torch_geometric.utils import to_networkx
+from torch_geometric.nn import GraphConv, GCNConv
 
 from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
@@ -26,8 +28,10 @@ from torch_geometric.data import Data, DataLoader
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
 from torch_geometric.nn import GNNExplainer
+from torch_geometric.utils import subgraph
 
 from nilearn import plotting, datasets
+
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
@@ -132,7 +136,7 @@ train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
 
-train_loader = DataLoader(graphs, batch_size=1, sampler=train_sampler)
+train_loader = DataLoader(graphs, batch_size=64, sampler=train_sampler)
 test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 
 ##########################################################
@@ -140,7 +144,7 @@ test_loader = DataLoader(graphs, batch_size=64, sampler=valid_sampler)
 ##########################################################
 print("--------> Using ", device)
 
-''''''
+'''
 # model = GNN(hidden_channels=64, num_node_features=x.shape[1], num_classes=1).to(device)
 # def train_gnn(config, checkpoint_dir=None):
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
@@ -268,8 +272,8 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
-
 '''
+''''''
 #########################################################
 # %% Interpret result
 #########################################################
@@ -312,15 +316,17 @@ plt.show()
 plotting.plot_connectome(adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
 plt.show()
 
+# subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False, num_nodes=None)
 # %%
 ### view connectome
 
 
 # %%
 ### Explain
-explainer = GNNExplainer(model, epochs=1)
-node_idx = 10
+explainer = GNNExplainer(model, epochs=100)
+node_idx = 0
 node_feat_mask, edge_mask = explainer.explain_node(node_idx, data_batch.x, data_batch.edge_index, edge_attr=data_batch.edge_attr, batch=data_batch.batch)
+
+# xxx = subgraph(node_idx, data_batch.edge_index, edge_attr=data_batch.edge_attr, relabel_nodes=False, num_nodes=None)
 ax, G = explainer.visualize_subgraph(node_idx, data_batch.edge_index, edge_mask)
 plt.show()
-'''

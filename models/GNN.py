@@ -114,15 +114,15 @@ class GNN_SAG(torch.nn.Module):
         # 1st layer
         self.conv1 = GATConv(self.num_features, self.nhid // 3, heads=3)
         self.bn1 = nn.BatchNorm1d(self.nhid)
-        self.pool1 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
+        # self.pool1 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
         # 2nd layer
         self.conv2 = GATConv(self.nhid, self.nhid // 3, heads=3)
         self.bn2 = nn.BatchNorm1d(self.nhid)
-        self.pool2 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
+        # self.pool2 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
         # 3rd layer
         self.conv3 = GATConv(self.nhid, self.nhid // 3, heads=3)
         self.bn3 = nn.BatchNorm1d(self.nhid)
-        self.pool3 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
+        # self.pool3 = TopKPooling(self.nhid, ratio=self.pooling_ratio)
         # fc layer
         self.lin1 = torch.nn.Linear(self.nhid * 2, self.nhid)
         self.lin2 = torch.nn.Linear(self.nhid, self.nhid // 2)
@@ -133,21 +133,21 @@ class GNN_SAG(torch.nn.Module):
         x = F.relu(self.conv1(x, edge_index))
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
         x = self.bn1(x)
-        x, edge_index, edge_attr, batch, _, _ = self.pool1(x, edge_index, edge_attr, batch)
+        # x, edge_index, edge_attr, batch, _, _ = self.pool1(x, edge_index, edge_attr, batch)
         x1 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # 2nd layer
         x = F.relu(self.conv2(x, edge_index))
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
         x = self.bn2(x)
-        x, edge_index, edge_attr, batch, _, _ = self.pool2(x, edge_index, edge_attr, batch)
+        # x, edge_index, edge_attr, batch, _, _ = self.pool2(x, edge_index, edge_attr, batch)
         x2 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # 3rd layer
         x = F.relu(self.conv3(x, edge_index))
-        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
+        # edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
         x = self.bn3(x)
-        x, edge_index, edge_attr, batch, _, _ = self.pool3(x, edge_index, edge_attr, batch)
+        # x, edge_index, edge_attr, batch, _, _ = self.pool3(x, edge_index, edge_attr, batch)
         x3 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # concat

@@ -8,10 +8,10 @@ import os
 from utils.data import *
 from models.MLP import Linear
 from utils.config import args
-from utils.helper import plot_train_result, num_correct, plot_evaluation_matrix
+from utils.helper import plot_train_result, num_correct, plot_evaluation_matrix, cross_validation_train_vec_loader
 from datetime import datetime
 from utils.datasets import DatasetFactory
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
 from sklearn.metrics import accuracy_score
@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 from ray import tune
 from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
+
+from sklearn.model_selection import KFold
 
 ##########################################################
 # %% Meta
@@ -44,10 +46,14 @@ else:
 #     train_path="./data/augmented/2088_train_273_MSDL_org_100_window_5_stride",
 #     test_path="./data/augmented/369_test_273_MSDL_org_100_window_5_stride")
 train_dataset, test_dataset = DatasetFactory.create_train_test_connectivity_datasets_from_single_path(
-    path="data/271_AAL"
+    path="data/273_MSDL"
 )
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
+
+train_idx, valid_idx = np.random.permutation(range(len(train_dataset))), np.random.permutation(range(len(test_dataset)))
+train_sampler = SubsetRandomSampler(train_idx)
+valid_sampler = SubsetRandomSampler(valid_idx)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, sampler=train_sampler)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True, sampler=valid_sampler)
 
 ##########################################################
 # %% initialise model and loss func
@@ -106,7 +112,7 @@ for epoch in range(100):
 
     # tune.report(train_loss=train_loss_list[-1], train_accuracy=training_acc[-1], test_loss=test_loss_list[-1],
     #             test_accuracy=testing_acc[-1])
-    if epoch % 20 == 0:
+    if epoch % 50 == 0:
         print(f"====>Training: Epoch: {epoch}, Train loss: {train_loss_list[-1]:.3f}, Accuracy: {training_acc[-1]:.3f}")
         print(f"Test loss: {test_loss_list[-1]:.3f}, Accuracy: {testing_acc[-1]:.3f}")
 
@@ -156,10 +162,12 @@ if SAVE:
 # %% Plot result
 #########################################################
 plot_train_result(history, save_path=save_path)
-'''
+
+
 #########################################################
 # %% Evaluate result
 #########################################################
+'''
 ### test ###
 model.eval()
 label_truth = []
