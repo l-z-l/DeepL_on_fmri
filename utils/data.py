@@ -318,7 +318,7 @@ def sym_normalize_list(connectivity_matrices):
     for i, adj in enumerate(connectivity_matrices):
         # adj[adj != 0] = 1  # weighted graph
         adj += sp.eye(adj.shape[0])  # A^hat = A + I
-        rowsum = np.array(np.count_nonzero(adj, axis=1))  # D = Nodal degrees
+        rowsum = np.asarray(adj.sum(1))  # D = Nodal degrees
 
         adj = sp.coo_matrix(adj)
         d_inv_sqrt = np.power(rowsum, -0.5).flatten()  # D^-0.5 116 * 1 tensor

@@ -8,21 +8,18 @@ from torch import nn
 
 import nilearn
 from nilearn import plotting, datasets
-from nilearn.image import mean_img, index_img, get_data
+from nilearn.regions import connected_regions
+from nilearn.image import mean_img, index_img, threshold_img, get_data, load_img, plot_glass_brain
 
-
-from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
     row_normalize, sym_normalize, list_2_tensor, bingge_norm_adjacency
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import networkx as nx
-from torch_geometric.data import Data, DataLoader
 # from utils.config import args
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
-from torch_geometric.nn import GNNExplainer
 
 ##########################################################
 # %% Meta
@@ -96,4 +93,27 @@ view.open_in_browser()
 # %%
 ### add markers
 # https://nilearn.github.io/auto_examples/03_connectivity/plot_seed_to_voxel_correlation.html#sphx-glr-auto-examples-03-connectivity-plot-seed-to-voxel-correlation-py
-display.add_markers
+# display.add_markers
+
+# %%
+AD = load_img('./data/sample_raw_data/AD_2012-11-08.nii')
+CN = load_img('./data/sample_raw_data/CN_2012-03-01.nii')
+threshold_percentile_AD = threshold_img(AD, threshold='95%', copy=False)
+threshold_percentile_CN = threshold_img(AD, threshold='95%', copy=False)
+
+regions_percentile_img_AD, index = connected_regions(threshold_percentile_AD,
+                                                  min_region_size=1500)
+
+for mode in ['x', 'y', 'z']:
+    plot_regions_AD = plotting.plot_prob_atlas(regions_percentile_img_AD, bg_img=AD,
+                             view_type='contours', display_mode=mode,
+                             cut_coords=5, title="title")
+    plot_regions_AD.savefig(f'./outputs/regions_AD_{mode}.png')
+
+# plot_threshold_percentile_AD = plotting.plot_stat_map(mean_img(threshold_percentile_AD), display_mode='y', cut_coords=10,
+#                        title='Threshold image with string percentile', colorbar=False)
+# plot_threshold_percentile_AD.savefig('./outputs/threshold_percentile_AD_y.png')
+#
+# plot_threshold_percentile_CN = plotting.plot_stat_map(mean_img(threshold_percentile_CN), display_mode='y', cut_coords=10,
+#                        title='Threshold image with string percentile', colorbar=False)
+# plot_threshold_percentile_CN.savefig('./outputs/threshold_percentile_CN_y.png')
