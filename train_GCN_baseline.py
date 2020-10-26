@@ -21,6 +21,9 @@ import pandas as pd
 import scipy.sparse as sp
 import networkx as nx
 from torch_geometric.data import Data, DataLoader
+from torch_geometric.utils import dropout_adj
+from torch_geometric.nn import global_max_pool, global_mean_pool
+from torch.nn import functional as F
 # from utils.config import args
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
@@ -72,7 +75,7 @@ graphs = []
 node_embeddings = []
 scaler = MinMaxScaler(feature_range=(0, 1))
 for i, matrix in enumerate(connectivity_matrices):
-    # node is not self connected
+    # node is not model connected
     # np.fill_diagonal(matrix, 0)
 
     ### THRESHOLD: remove WHEN abs(connectivity) < mean + 1 * std
@@ -121,7 +124,7 @@ for i, g in enumerate(graphs):
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
 print(f'Contains isolated nodes: {graphs[-1].contains_isolated_nodes()}')
-print(f'Self Connected: {graphs[-1].contains_self_loops()}')
+print(f'model Connected: {graphs[-1].contains_self_loops()}')
 
 ### sampling
 train_idx, valid_idx = train_test_split(np.arange(len(graphs)),
@@ -266,25 +269,15 @@ if SAVE:
 
 # %%
 plot_train_result(history, save_path=save_path)
-'''
+'''                      
 #########################################################
 # %% Interpret result
 #########################################################
 # load the model
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
-            dropout_ratio=0.5)# .to(device)
-model.load_state_dict(torch.load('./outputs/SAG_2020-10-26-11:37_273_MSDL/GCN.pth'))
+            dropout_ratio=0.5).to(device)
+model.load_state_dict(torch.load('./outputs/SAG_bnafter_273_MSDL/GCN.pth'))
 
 val_loader = DataLoader(graphs, batch_size=1, sampler=valid_sampler)
 valiter = iter(val_loader)
-data = next(valiter)# .to(device)
-
-# %%
-### Explaine
-explainer = GNNExplainer(model, epochs=1)
-node_idx = 10
-node_feat_mask, edge_mask = explainer.explain_node(node_idx, data.x, data.edge_index, edge_attr=data.edge_attr, batch=data.batch)
-ax, G = explainer.visualize_subgraph(node_idx, data.edge_index, edge_mask)
-plt.show()
-
-val_predict = model(data.x, data.edge_index, data.edge_attr, data.batch)
+data = next(valiter).to(device)

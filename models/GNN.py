@@ -129,24 +129,28 @@ class GNN_SAG(torch.nn.Module):
         self.lin3 = torch.nn.Linear(self.nhid // 2, self.num_classes)
 
     def forward(self, x, edge_index, edge_attr, batch):
-        # 1st layer
-        x = F.relu(self.conv1(x, edge_index))
+        ### 1st layer
+        x = self.conv1(x, edge_index)
+        x = F.relu(self.bn1(x))
+        # dropout edges
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
-        x = self.bn1(x)
+        # SAG pooling
         x, edge_index, edge_attr, batch, _, _ = self.pool1(x, edge_index, edge_attr, batch)
         x1 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # 2nd layer
         x = F.relu(self.conv2(x, edge_index))
+        x = F.relu(self.bn2(x))
+        # dropout edges
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
-        x = self.bn2(x)
+        # SAG pooling
         x, edge_index, edge_attr, batch, _, _ = self.pool2(x, edge_index, edge_attr, batch)
         x2 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # 3rd layer
         x = F.relu(self.conv3(x, edge_index))
+        x = F.relu(self.bn3(x))
         edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
-        x = self.bn3(x)
         x, edge_index, edge_attr, batch, _, _ = self.pool3(x, edge_index, edge_attr, batch)
         x3 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
