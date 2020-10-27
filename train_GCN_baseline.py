@@ -307,19 +307,32 @@ adj = nx.to_numpy_array(G, weight='edge_attr') # plot to connectome
 
 # %% Connection plot
 coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
-raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%').open_in_browser()
-view = plotting.view_connectome(adj, coordinates, edge_threshold='10%').open_in_browser()
+raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%').save_as_html('./outputs/raw')
+view = plotting.view_connectome(adj, coordinates, edge_threshold='10%').save_as_html('./outputs/selected')
 
 ### view connectome
-plotting.plot_connectome(raw_adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+z = plotting.plot_connectome(raw_adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+z.savefig('./outputs/raw')
 plt.show()
-plotting.plot_connectome(adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+z = plotting.plot_connectome(adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
+z.savefig('./outputs/processed')
 plt.show()
+
+# %%
+z = plotting.plot_connectome_strength(
+    np.clip(raw_adj, 0, raw_adj.max()), coordinates, node_size='auto', cmap=plt.cm.YlOrRd,
+    title='Strength of the positive edges of the Power correlation matrix'
+)
+z.savefig('./outputs/raw_strength_p')
+
+# plot the negative part of of the matrix
+z = plotting.plot_connectome_strength(
+    np.clip(raw_adj, raw_adj.min(), 0), coordinates, node_size='auto', cmap=plt.cm.PuBu,
+    title='Strength of the negative edges of the Power correlation matrix'
+)
+z.savefig('./outputs/raw_strength_n')
 
 # subgraph(subset, edge_index, edge_attr=None, relabel_nodes=False, num_nodes=None)
-# %%
-### view connectome
-
 
 # %%
 ### Explain
@@ -330,3 +343,4 @@ node_feat_mask, edge_mask = explainer.explain_node(node_idx, data_batch.x, data_
 # xxx = subgraph(node_idx, data_batch.edge_index, edge_attr=data_batch.edge_attr, relabel_nodes=False, num_nodes=None)
 ax, G = explainer.visualize_subgraph(node_idx, data_batch.edge_index, edge_mask)
 plt.show()
+plt.savefig('./outputs/network')

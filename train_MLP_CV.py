@@ -27,7 +27,7 @@ from sklearn.model_selection import KFold
 # %% Meta
 ###############train_test_split###########################
 SAVE = True
-MODEL_NANE = f'MLP_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
+MODEL_NANE = f'MLPCV_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data/'
 outdir = './outputs'
 dataset_name = '2088_train_273_MSDL_org_100_window_5_stride'
@@ -53,10 +53,8 @@ train_dataset, test_dataset = DatasetFactory.create_train_test_connectivity_data
 ##########################################################
 print("--------> Using ", device)
 # def train_glm(config, checkpoint_dir=None):
-model = Linear(len(train_dataset[0][0]), 1)
-model.to(device)
+model = Linear(len(train_dataset[0][0]), 1).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_decay)
-
 criterion = torch.nn.BCEWithLogitsLoss().to(device)
 
 results = []

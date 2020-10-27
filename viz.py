@@ -9,17 +9,21 @@ from torch import nn
 import nilearn
 from nilearn import plotting, datasets
 from nilearn.regions import connected_regions
-from nilearn.image import mean_img, index_img, threshold_img, get_data, load_img, plot_glass_brain
+from nilearn.image import mean_img, index_img, threshold_img, get_data, load_img
 
+
+from models.GNN import GNN, GNN_SAG
 from utils.data import load_fmri_data, signal_to_connectivities, node_embed, \
     row_normalize, sym_normalize, list_2_tensor, bingge_norm_adjacency
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 import networkx as nx
+from torch_geometric.data import Data, DataLoader
 # from utils.config import args
 from utils.helper import num_correct, plot_train_result, plot_evaluation_matrix
 from datetime import datetime
+from torch_geometric.nn import GNNExplainer
 
 ##########################################################
 # %% Meta
@@ -27,7 +31,7 @@ from datetime import datetime
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
-dataset_name = '271_AAL'
+dataset_name = '273_MSDL'
 
 ##########################################################
 # %% Load Data
@@ -44,7 +48,7 @@ matrix = functional_connectivity[0]
 
 # %%
 ### coordinates
-coordinates = np.load(f'./data/AAL_coordinates.npy', allow_pickle=True)
+coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
 # or find coordiantes
 aal_atlas = datasets.fetch_atlas_aal(version='SPM12', data_dir=None, url=None, resume=True, verbose=1)
 maps = nilearn.image.load_img(aal_atlas['maps'], wildcards=True, dtype=None)
