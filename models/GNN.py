@@ -158,27 +158,33 @@ class GNN_SAG(torch.nn.Module):
         x = F.relu(self.lin2(x))
         x = F.dropout(x, p=self.dropout_ratio, training=self.training)
 
-        return self.lin3(x)
+        return F.softmax(self.lin3(x))
 
     def interpret(self, x, edge_index, edge_attr, batch):
         # 1st layer
         x = F.relu(self.conv1(x, edge_index))
-        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
+        l1_edge_index_dropped, l1_edge_attr_dropped = dropout_adj(edge_index, edge_attr, p=0.5, training=self.training)
         x = self.bn1(x)
-        # x, edge_index, edge_attr, batch, _, _ = self.pool1(x, edge_index, edge_attr, batch)
+        # x, edge_index, edge_attr, batchs, _, _ = self.pool1(x, edge_index, edge_attr, batch)
         x1 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
         # 2nd layer
-        x = F.relu(self.conv2(x, edge_index))
-        edge_index, edge_attr = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
+        x = F.relu(self.conv2(x, l1_edge_index_dropped))
+        l2_edge_index_dropped, l2_edge_attr_dropped = dropout_adj(l1_edge_index_dropped, l1_edge_attr_dropped, p=0.5, training=self.training)
         x = self.bn2(x)
         # x, edge_index, edge_attr, batch, _, _ = self.pool2(x, edge_index, edge_attr, batch)
         x2 = torch.cat([global_mean_pool(x, batch), global_max_pool(x, batch)], dim=1)
 
-        l3_conv = self.bn3(F.relu(self.conv3(x, edge_index)))
-        l3_edge_index_dropped, l3_edge_attr_dropped = dropout_adj(edge_index, edge_attr, p=self.dropout_ratio, training=self.training)
+        l3_conv = self.bn3(F.relu(self.conv3(x, l2_edge_index_dropped)))
+        l3_edge_index_dropped, l3_edge_attr_dropped = dropout_adj(l2_edge_index_dropped, l2_edge_attr_dropped, p=0.5, training=self.training)
         l3_final = torch.cat([global_mean_pool(l3_conv, batch), global_max_pool(l3_conv, batch)], dim=1)
+
+        print()
         return {
+            "l1_edge_index_dropped": l1_edge_index_dropped,
+            "l1_edge_attr_dropped": l1_edge_attr_dropped,
+            "l2_edge_index_dropped": l2_edge_index_dropped,
+            "l2_edge_attr_dropped": l2_edge_attr_dropped,
             "l3_conv": l3_conv,
             "l3_edge_index_dropped": l3_edge_index_dropped,
             "l3_edge_attr_dropped": l3_edge_attr_dropped,

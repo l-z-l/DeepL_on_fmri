@@ -25,6 +25,15 @@ class LSTM(nn.Module):
             # nn.BatchNorm1d(hidden_layer_size)
         )
 
+    def interpret(self, input_seq):
+        ##### CNN LSTM
+        lstm_out, (h, c) = self.lstm_1(input_seq)
+        lstm_out, _ = self.lstm_2(lstm_out)
+        lstm_out = lstm_out.permute(0, 2, 1)
+        output = self.CONV(lstm_out)
+        output = torch.max(output, 2)[0]  # global max for CNN
+        return output
+
     def forward(self, input_seq):
         '''
         ### 2 layer LSTM
@@ -39,10 +48,9 @@ class LSTM(nn.Module):
         # lstm_out = lstm_out.permute(0, 2, 1)
         # output = self.CONV(lstm_out)
         # print(f"output shape {output.shape}")
-        output = []
         output = lstm_out_1.reshape(len(input_seq), -1)
         output = self.linear(output)
-        output = self.sig(output)
+        # output = self.sig(output)
         # output, _ = torch.max(lstm_out, 1)
         '''
         ##### CNN LSTM
@@ -58,6 +66,7 @@ class LSTM(nn.Module):
         # print(f"lstm_out2 shape {lstm_out.shape}")
 
         return output
+
 
     # Potential issue with VAE
         # Can't learn the representation to be classified

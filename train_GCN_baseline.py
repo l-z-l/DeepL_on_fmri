@@ -68,9 +68,12 @@ labels = [x if (x == "CN") else "CD" for x in labels]
 _, labels_index, classes_count = np.unique(labels, return_inverse=True, return_counts=True)
 label = torch.as_tensor(labels_index, dtype=torch.float)
 
-connectivity_matrices = np.concatenate([signal_to_connectivities(ROIs, kind='correlation'), signal_to_connectivities(ROIs_supp, kind='correlation')])
-partial_corr = np.concatenate([signal_to_connectivities(ROIs, kind='partial correlation'), signal_to_connectivities(ROIs_supp, kind='partial correlation')])
-precision = np.concatenate([signal_to_connectivities(ROIs, kind='precision'), signal_to_connectivities(ROIs_supp, kind='precision')])
+connectivity_matrices = np.concatenate(
+    [signal_to_connectivities(ROIs, kind='correlation'), signal_to_connectivities(ROIs_supp, kind='correlation')])
+partial_corr = np.concatenate([signal_to_connectivities(ROIs, kind='partial correlation'),
+                               signal_to_connectivities(ROIs_supp, kind='partial correlation')])
+precision = np.concatenate(
+    [signal_to_connectivities(ROIs, kind='precision'), signal_to_connectivities(ROIs_supp, kind='precision')])
 
 # %%
 ### get features
@@ -122,7 +125,7 @@ xs = torch.tensor(xs.reshape((ROIs.shape[0] + ROIs_supp.shape[0], ROIs.shape[2],
 
 # normalize edge
 for i, g in enumerate(graphs):
-    g.x = xs[i] # + int(label[i]) * 10000
+    g.x = xs[i]  # + int(label[i]) * 10000
 
 print(f"Data: {graphs[-1]}")
 print(f'Is directed: {graphs[-1].is_undirected()}')
@@ -279,36 +282,55 @@ plot_train_result(history, save_path=save_path)
 #########################################################
 # load the model
 model = GNN_SAG(num_features=x.shape[1], nhid=10, num_classes=2, pooling_ratio=0.5,
-            dropout_ratio=0.5)# .to(device)
+                dropout_ratio=0.5)  # .to(device)
 model.load_state_dict(torch.load('./outputs/GAT_273_MSDL/GCN.pth'))
 
 val_loader = DataLoader(graphs, batch_size=1, sampler=valid_sampler)
 valiter = iter(val_loader)
-data_batch = next(valiter)# .to(device)
+data_batch = next(valiter)  # .to(device)
 
 # %%
 # only keep the one edge attr as edge weights
 data = data_batch.to_data_list()[0]
 data.edge_attr = data.edge_attr[:, 1]
 raw_networkx = to_networkx(data, node_attrs=['x'], edge_attrs=['edge_attr'], to_undirected=True, remove_self_loops=True)
-raw_adj = nx.to_numpy_array(raw_networkx, weight='edge_attr') # plot to connectome
+# raw_adj = nx.to_numpy_array(raw_networkx, weight='edge_attr') # plot to connectome
 
 # %%
 adj, weight = data_batch.edge_index, data_batch.edge_attr
 param_dict = model.interpret(data_batch.x, adj, weight, data_batch.batch)
 
-
 # %%
-data_process = Data(edge_index=param_dict['l3_edge_index_dropped'], edge_attr=param_dict['l3_edge_attr_dropped'], y=data.y).to('cpu')
+data_process = Data(edge_index=param_dict['l2_edge_index_dropped'], edge_attr=param_dict['l2_edge_attr_dropped'],
+                    y=data.y).to('cpu')
 data_process.edge_attr = data_process.edge_attr[:, 1]
 G = to_networkx(data_process, edge_attrs=['edge_attr'], to_undirected=True, remove_self_loops=True)
-adj = nx.to_numpy_array(G, weight='edge_attr') # plot to connectome
+adj = nx.to_numpy_array(G, weight='edge_attr')  # plot to connectome
 
-
+df = nx.to_pandas_edgelist(G)
+df.columns = ['Source', 'Target', 'TransactionAmt']
+df['Date'] = "1/1/2017"
+df['TransactionAmt'] = abs(df['TransactionAmt'].apply(lambda x : int(abs(x) * 10000)))
+percentile = np.percentile(df['TransactionAmt'], 90)
+df = df[df['TransactionAmt'] > percentile]
+df.to_csv("edge_2017.csv", index=False)
+''''''
+# %% merge
+df_2016 = pd.read_csv('edge_2016.csv')
+df_2017 = pd.read_csv('edge_2017.csv')
+df_2018 = pd.read_csv('edge.csv')
+df = pd.concat([df_2016, df_2017, df_2018])
+df.to_csv("edge.csv", index=False)
+# node_df = pd.read_csv('./data/msdl_rois_labels.csv')
+# node_df['Account'] = node_df.index
+# node_df.rename(columns={'name': 'CustomerName', 'net name': 'Type'}, inplace=True)
+# node_df.to_csv("node.csv", index=False)
+''''''
+"""
 # %% Connection plot
 coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
-raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%').save_as_html('./outputs/raw')
-view = plotting.view_connectome(adj, coordinates, edge_threshold='10%').save_as_html('./outputs/selected')
+raw_view = plotting.view_connectome(raw_adj, coordinates, edge_threshold='10%') # .save_as_html('./outputs/raw')
+view = plotting.view_connectome(adj, coordinates, edge_threshold='10%') # .save_as_html('./outputs/selected')
 
 ### view connectome
 z = plotting.plot_connectome(raw_adj, coordinates, edge_threshold="80%", node_size=20, colorbar=True)
@@ -344,3 +366,4 @@ node_feat_mask, edge_mask = explainer.explain_node(node_idx, data_batch.x, data_
 ax, G = explainer.visualize_subgraph(node_idx, data_batch.edge_index, edge_mask)
 plt.show()
 plt.savefig('./outputs/network')
+"""

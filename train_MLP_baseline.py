@@ -43,17 +43,18 @@ else:
 # %% Load Data
 ###############train_test_split###########################################
 # train_dataset, test_dataset = DatasetFactory.create_train_test_connectivity_datasets_from_path(
-#     train_path="./data/augmented/2088_train_273_MSDL_org_100_window_5_stride",
-#     test_path="./data/augmented/369_test_273_MSDL_org_100_window_5_stride")
+#     train_path="./data/273_ICA_200_n50_train",
+#     test_path="./data/273_ICA_200_n50_test"
+# )
 train_dataset, test_dataset = DatasetFactory.create_train_test_connectivity_datasets_from_single_path(
-    path="data/273_MSDL"
+    path="data/271_AAL"
 )
 
 train_idx, valid_idx = np.random.permutation(range(len(train_dataset))), np.random.permutation(range(len(test_dataset)))
 train_sampler = SubsetRandomSampler(train_idx)
 valid_sampler = SubsetRandomSampler(valid_idx)
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, sampler=train_sampler)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True, sampler=valid_sampler)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=False, sampler=train_sampler)
+test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False, sampler=valid_sampler)
 
 ##########################################################
 # %% initialise model and loss func
@@ -67,7 +68,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_d
 criterion = torch.nn.BCEWithLogitsLoss().to(device)
 
 train_loss_list, test_loss_list, training_acc, testing_acc = [], [], [], []
-for epoch in range(100):
+for epoch in range(300):
     model.train()
     train_loss, correct, total = 0, 0, 0
     val_loss, val_correct, val_total = 0, 0, 0

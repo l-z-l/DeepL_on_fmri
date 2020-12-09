@@ -28,6 +28,7 @@ from torch_geometric.nn import GNNExplainer
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
+
 MODEL_NANE = f'SAG_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data'
 outdir = './outputs'
@@ -36,6 +37,7 @@ dataset_name = '273_MSDL'
 ##########################################################
 # %% Load Data
 ###############train_test_split###########################
+
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 
 ROIs, labels, labels_index = load_fmri_data(dataDir=datadir, dataset=dataset_name)
@@ -52,7 +54,7 @@ coordinates = np.load(f'./data/MSDL_coordinates.npy', allow_pickle=True)
 # or find coordiantes
 aal_atlas = datasets.fetch_atlas_aal(version='SPM12', data_dir=None, url=None, resume=True, verbose=1)
 maps = nilearn.image.load_img(aal_atlas['maps'], wildcards=True, dtype=None)
-
+'''
 # %%
 coordinates = nilearn.plotting.find_parcellation_cut_coords(maps)
 
@@ -70,7 +72,7 @@ plotting.plot_epi(aal_atlas['maps'], cut_coords=cut_coords,
 plt.show()
 
 # %%
-### view connectome
+### view connectome 2D
 plotting.plot_connectome(matrix, coordinates, edge_threshold="99.5%", node_size=20, colorbar=True)
 plt.show()
 
@@ -88,12 +90,13 @@ plotting.plot_connectome_strength(
     title='Strength of the negative edges of the Power correlation matrix'
 )
 plt.show()
-
+'''
+'''
 # %%
-### view connectome strength
+### connectome 3D
 view = plotting.view_connectome(matrix, coordinates, edge_threshold='95%')
 view.open_in_browser()
-
+'''
 # %%
 ### add markers
 # https://nilearn.github.io/auto_examples/03_connectivity/plot_seed_to_voxel_correlation.html#sphx-glr-auto-examples-03-connectivity-plot-seed-to-voxel-correlation-py
@@ -105,11 +108,10 @@ CN = load_img('./data/sample_raw_data/CN_2012-03-01.nii')
 threshold_percentile_AD = threshold_img(AD, threshold='95%', copy=False)
 threshold_percentile_CN = threshold_img(AD, threshold='95%', copy=False)
 
-regions_percentile_img_AD, index = connected_regions(threshold_percentile_AD,
-                                                  min_region_size=1500)
-
-for mode in ['x', 'y', 'z']:
-    plot_regions_AD = plotting.plot_prob_atlas(regions_percentile_img_AD, bg_img=AD,
+regions_percentile_img_AD, index = mean_img(connected_regions(threshold_percentile_AD,
+                                                  min_region_size=1500))
+for mode in ['x']: #, 'y', 'z']:
+    plot_regions_AD = plotting.plot_prob_atlas(regions_percentile_img_AD, bg_img=mean_img(AD),
                              view_type='contours', display_mode=mode,
                              cut_coords=5, title="title")
     plot_regions_AD.savefig(f'./outputs/regions_AD_{mode}.png')
@@ -121,3 +123,4 @@ for mode in ['x', 'y', 'z']:
 # plot_threshold_percentile_CN = plotting.plot_stat_map(mean_img(threshold_percentile_CN), display_mode='y', cut_coords=10,
 #                        title='Threshold image with string percentile', colorbar=False)
 # plot_threshold_percentile_CN.savefig('./outputs/threshold_percentile_CN_y.png')
+

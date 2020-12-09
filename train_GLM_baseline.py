@@ -26,14 +26,13 @@ from sklearn.svm import LinearSVC
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
 
 from utils.data import *
-from models.GNN import GCN
 from utils.config import args
 from utils.helper import masked_loss, masked_acc
 ##########################################################
 # %% Load Data
 ##########################################################
 # LOAD data
-ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='273_Havard_Oxford')
+ROIs, labels, labels_index = load_fmri_data(dataDir='data/', dataset='271_100_5_sliced_AAL')
 # convert to functional connectivity
 connectivity_matrices = signal_to_connectivities(ROIs, kind='correlation', discard_diagonal=True, vectorize=True)
 

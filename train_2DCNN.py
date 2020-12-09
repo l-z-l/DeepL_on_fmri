@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 ##########################################################
 # %% Meta
 ###############train_test_split###########################
-SAVE = True
+SAVE = False
 MODEL_NANE = f'2dCNN_{datetime.now().strftime("%Y-%m-%d-%H:%M")}'
 datadir = './data/augmented/'
 outdir = './outputs'
@@ -42,13 +42,13 @@ else:
 ##########################################################
 device = torch.device('cpu' if not torch.cuda.is_available() else 'cuda')
 ## augmented
-train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_path(
-    train_path="data/augmented/2070_train_271_AAL_org_100_window_5_stride",
-    test_path="data/augmented/369_test_271_AAL_org_100_window_5_stride")
+# train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_path(
+#     train_path="data/augmented/2088_train_273_ICA_200_n50_org_100_window_5_stride",
+#     test_path="data/augmented/369_test_273_ICA_200_n50_org_100_window_5_stride")
 ## not augmented
-# train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_single_path(
-#     path=datadir + dataset_name
-# )
+train_dataset, test_dataset = DatasetFactory.create_train_test_roi_signal_datasets_from_single_path(
+    path="./data/273_Havard_Oxford"
+)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
@@ -59,7 +59,7 @@ test_loader = DataLoader(test_dataset, batch_size=128, shuffle=True)
 model = SpatialTemporalCNN()
 model.to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=args.weight_decay)
+optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=args.weight_decay)
 criterion = torch.nn.CrossEntropyLoss().to(device)
 
 train_loss_list, val_loss_list, training_acc, testing_acc = [], [], [], []
